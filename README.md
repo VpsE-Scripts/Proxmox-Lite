@@ -33,7 +33,19 @@ That's it. After a few minutes you'll have:
 - Proxmox Web UI at `https://<your-vps-ip>:8006`
 - NAT + DHCP ready on `vmbr0` (subnet `10.0.3.0/24`)
 - All VM/ZFS/Ceph packages stripped out
-- The **`vpse`** CLI tool for container and port management
+- The **`vpse`** CLI tool for port management
+
+## First container (via Web UI)
+
+1. Open `https://<your-vps-ip>:8006` in your browser
+2. Log in with **root** and your VPS root password
+3. **Download a template:**  `Datacenter → your-node → local (storage) → Templates → search "debian" → Download`
+4. **Create a container:**  `Datacenter → your-node → right-click → Create CT`
+   - General: set VMID (e.g. 100), hostname, password
+   - Template: select the downloaded Debian template
+   - Network: set **IPv4 = DHCP** (automatic IP from dnsmasq)
+   - Resources: default is fine
+5. Start the container — it gets IP `10.0.3.200`+ from the DHCP pool
 
 ## vpse CLI
 
@@ -75,48 +87,17 @@ vpse delete 100
 
 > **Note:** Ports are persisted in `/etc/vpse/ports.txt` and survive reboots via `netfilter-persistent`.
 
-## Creating your first container
+## vpse ip (CLI shortcut)
 
-### With DHCP (automatic IP)
-
-```bash
-# First check which template is available
-ls /var/lib/vz/template/cache/debian-*-standard*
-
-pct create 100 /var/lib/vz/template/cache/debian-XX-standard_*.tar.zst \
-  --hostname ct100 --storage local \
-  --net0 name=eth0,bridge=vmbr0,ip=dhcp \
-  --unprivileged 1 --rootfs local:4
-
-pct start 100
-pct enter 100
-```
-
-The container gets IP `10.0.3.200`+ from the DHCP pool.
-
-### With a fixed IP (via DHCP reservation)
-
-Write the hostname and IP to a dnsmasq config file, then restart:
+To create a container directly from the command line with a fixed DHCP IP:
 
 ```bash
-mkdir -p /etc/vpse/dhcp-hosts
-echo 'dhcp-host=ct100,10.0.3.100' > /etc/vpse/dhcp-hosts/100.conf
-echo 'conf-dir=/etc/vpse/dhcp-hosts,*.conf' > /etc/dnsmasq.d/vpse-hosts.conf
-systemctl restart dnsmasq
+vpse ip 100
 ```
 
-Then create the container with `ip=dhcp` as above — dnsmasq will assign `10.0.3.100`.
+This creates a container with hostname `ct100`, DHCP reservation → `10.0.3.100`, and starts it. The container password is `vpse4pve`.
 
-### With a static IP (no DHCP)
-
-```bash
-pct create 100 /var/lib/vz/template/cache/debian-XX-standard_*.tar.zst \
-  --hostname ct100 --storage local \
-  --net0 name=eth0,bridge=vmbr0,ip=10.0.3.100/24,gw=10.0.3.1 \
-  --unprivileged 1 --rootfs local:4
-
-pct start 100
-```
+> **Note:** The first time you use this, Proxmox needs a template downloaded first. Do that via Web UI (`Datacenter → local → Templates → download Debian`), or via CLI: `pveam download local debian-XX-standard`
 
 ## Port forwarding
 
