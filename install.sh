@@ -99,6 +99,10 @@ ok "$(pveversion 2>/dev/null)"
 echo ""
 echo "🗑️  Stap 5/7 — Remove VM/ZFS/Ceph"
 
+# Temporarily disable pve-apt-hook (it breaks when we remove packages)
+PVE_HOOK="/usr/share/proxmox-ve/pve-apt-hook"
+[ -f "$PVE_HOOK" ] && mv "$PVE_HOOK" "${PVE_HOOK}.bak" 2>/dev/null || true
+
 # qemu-utils (qemu-img) is needed for container disk images — install BEFORE dummy packages
 apt-get install -y -qq qemu-utils 2>&1 | tail -2 || true
 
@@ -382,6 +386,9 @@ echo ""
 echo "🔄 Restarting services"
 
 systemctl restart pve-cluster pveproxy pvedaemon pvestatd 2>/dev/null || true
+
+# Restore pve-apt-hook (was disabled during package removal)
+[ -f "${PVE_HOOK}.bak" ] && mv "${PVE_HOOK}.bak" "$PVE_HOOK" 2>/dev/null || true
 
 echo ""
 echo "╔══════════════════════════════════╗"
