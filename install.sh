@@ -132,11 +132,7 @@ NOOP
   chmod 755 "$PVE_HOOK"
 fi
 
-# qemu-utils is needed for container disk images — install if missing
-dpkg -l qemu-utils 2>/dev/null | grep -q '^ii' || \
-  apt-get install -y -qq qemu-utils 2>&1 | tail -2 || true
-
-# Only create dummies for packages that might have been pulled in
+# Also pre-load equivs-build for dummy creation
 if ! command -v equivs-build &>/dev/null; then
   apt-get install -y -qq equivs 2>/dev/null
 fi
@@ -200,6 +196,10 @@ fi
 apt-mark unhold pve-manager 2>/dev/null || true
 
 ok "LXC-only cleanup done"
+
+# ─── qemu-utils installeren NA cleanup (apt conflict met pve-qemu-kvm vermijden)
+dpkg -l qemu-utils 2>/dev/null | grep -q '^ii' || \
+  apt-get install -y -qq qemu-utils 2>&1 | tail -2 || true
 
 # ═════════════════════════════════════════════════════════════
 # STAP 5 — Storage configuratie (rootdir toestaan voor LXC)
