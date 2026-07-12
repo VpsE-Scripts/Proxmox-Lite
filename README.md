@@ -4,21 +4,31 @@
 
 ## Install
 
-Run this on a **fresh Debian 12 or 13 VPS** as root:
+Run this on a **fresh Debian 12 or 13 VPS** as your user (debian, admin, etc.):
 
 ```bash
 curl -sL https://raw.githubusercontent.com/VpsE-Scripts/Proxmox-Lite/master/install.sh | bash
 ```
+
+> The installer auto-detects if you're not root and uses `sudo`.
 
 That's it. After a few minutes you'll have:
 
 - Proxmox Web UI at `https://<your-vps-ip>:8006`
 - The **`vpse`** CLI tool ready to use
 
+## Proxmox Web UI
+
+| Item | Value |
+|---|---|
+| URL | `https://<your-vps-ip>:8006` |
+| Username | `root` |
+| Password | `VpsE` |
+
 ## First container (via Web UI)
 
 1. Open `https://<your-vps-ip>:8006` in your browser
-2. Log in with **root** and your VPS root password
+2. Log in with **root** / **VpsE**
 3. **Download a template:** `Datacenter → your-node → local (storage) → Templates → search "debian" → Download`
 4. **Create a container:** `Datacenter → your-node → right-click → Create CT`
    - General: set VMID (e.g. 100), hostname, password

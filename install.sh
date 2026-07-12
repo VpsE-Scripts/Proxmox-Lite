@@ -14,7 +14,14 @@ echo "╚═══════════════════════�
 echo ""
 
 # ─── Prerequisites ──────────────────────────────────────────
-[ "$EUID" -eq 0 ] || fail "Run as root"
+if [ "$EUID" -ne 0 ]; then
+  if command -v sudo &>/dev/null; then
+    echo "🔄 Herstart met sudo..."
+    exec sudo bash "$0" "$@"
+  fi
+  fail "Run as root"
+fi
+PROXMOX_PASSWORD="${PROXMOX_PASSWORD:-VpsE}"
 DEBIAN_CODENAME=$(grep -oP 'VERSION_CODENAME=\K\w+' /etc/os-release 2>/dev/null || echo "")
 [ "$DEBIAN_CODENAME" = "bookworm" ] || [ "$DEBIAN_CODENAME" = "trixie" ] || \
   fail "Alleen Debian 12 (bookworm) of 13 (trixie)"
@@ -28,7 +35,7 @@ HOSTNAME=$(hostname)
 # STAP 1 — Proxmox repository
 # ═════════════════════════════════════════════════════════════
 echo ""
-echo "📦 Stap 1/6 — Proxmox repository"
+echo "📦 Stap 1/7 — Proxmox repository"
 
 echo "deb http://download.proxmox.com/debian/pve $DEBIAN_CODENAME pve-no-subscription" \
     > /etc/apt/sources.list.d/pve.list
@@ -48,7 +55,7 @@ ok "Repository gereed"
 # STAP 2 — /etc/hosts (pve-cluster vereist non-loopback hostname)
 # ═════════════════════════════════════════════════════════════
 echo ""
-echo "🔧 Stap 2/6 — /etc/hosts"
+echo "🔧 Stap 2/7 — /etc/hosts"
 
 sed -i '/127.0.1.1/d' /etc/hosts 2>/dev/null || true
 if ! grep -q "$PUBLIC_IP" /etc/hosts 2>/dev/null; then
@@ -57,10 +64,18 @@ fi
 ok "/etc/hosts: $PUBLIC_IP → $HOSTNAME"
 
 # ═════════════════════════════════════════════════════════════
-# STAP 3 — Proxmox VE installeren
+# STAP 3 — Root wachtwoord instellen (voor Proxmox Web UI)
 # ═════════════════════════════════════════════════════════════
 echo ""
-echo "📦 Stap 3/6 — Proxmox VE"
+echo "🔑 Stap 3/7 — Root wachtwoord instellen"
+echo "root:$PROXMOX_PASSWORD" | chpasswd
+ok "Root wachtwoord ingesteld"
+
+# ═════════════════════════════════════════════════════════════
+# STAP 4 — Proxmox VE installeren
+# ═════════════════════════════════════════════════════════════
+echo ""
+echo "📦 Stap 4/7 — Proxmox VE"
 
 if ! command -v pveversion &>/dev/null; then
   apt-get update -qq 2>/dev/null || apt-get update 2>&1 | tail -3
@@ -73,7 +88,7 @@ ok "$(pveversion 2>/dev/null)"
 # STAP 4 — VM/ZFS/Ceph verwijderen (LXC-only)
 # ═════════════════════════════════════════════════════════════
 echo ""
-echo "🗑️  Stap 4/6 — VM/ZFS/Ceph verwijderen"
+echo "🗑️  Stap 5/7 — VM/ZFS/Ceph verwijderen"
 
 if ! command -v equivs-build &>/dev/null; then
   apt-get install -y -qq equivs 2>/dev/null
@@ -146,7 +161,7 @@ ok "LXC-only: VM/ZFS/Ceph verwijderd"
 # STAP 5 — IP forwarding + NAT + DHCP
 # ═════════════════════════════════════════════════════════════
 echo ""
-echo "🌐 Stap 5/6 — NAT + DHCP"
+echo "🌐 Stap 6/7 — NAT + DHCP"
 
 # IP forwarding
 sysctl -w net.ipv4.ip_forward=1 >/dev/null
@@ -200,7 +215,7 @@ ok "NAT + DHCP actief (10.0.3.0/24)"
 # STAP 6 — vpse CLI installeren
 # ═════════════════════════════════════════════════════════════
 echo ""
-echo "🔧 Stap 6/7 — vpse CLI installeren"
+echo "🔧 Stap 7/7 — vpse CLI installeren"
 
 cat > /usr/local/bin/vpse <<-'VPSEOF'
 #!/bin/bash
@@ -313,7 +328,7 @@ ok "vpse CLI geïnstalleerd"
 # STAP 7 — Services herstarten
 # ═════════════════════════════════════════════════════════════
 echo ""
-echo "🔄 Stap 7/7 — Services herstarten"
+echo "🔄 Services herstarten"
 
 systemctl restart pve-cluster pveproxy pvedaemon pvestatd 2>/dev/null || true
 
