@@ -238,7 +238,9 @@ apt --fix-broken install -y -qq 2>/dev/null || true
 
 # iptables persistent
 mkdir -p /etc/iptables
-apt-get install -y -qq iptables-persistent 2>/dev/null || true
+echo "iptables-persistent iptables-persistent/autosave_v4 boolean true" | debconf-set-selections 2>/dev/null || true
+echo "iptables-persistent iptables-persistent/autosave_v6 boolean true" | debconf-set-selections 2>/dev/null || true
+DEBIAN_FRONTEND=noninteractive apt-get install -y -qq iptables-persistent 2>/dev/null || true
 netfilter-persistent save 2>/dev/null || iptables-save > /etc/iptables/rules.v4 2>/dev/null || true
 
 # DHCP (dnsmasq)
