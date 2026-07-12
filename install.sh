@@ -159,7 +159,9 @@ EOF
 apt-mark hold pve-manager 2>/dev/null || true
 
 # Remove packages only if they are installed (proxmox-ve fallback path)
-for pkg in qemu-server pve-qemu-kvm spiceterm; do
+for pkg in qemu-server pve-qemu-kvm spiceterm \
+  ceph-common ceph-fuse libcephfs2 librados2 librbd1 librgw2 \
+  zfsutils-linux zfs-zed libzfs7linux libzpool7linux libnvpair3linux libuutil3linux; do
   dummy "$pkg" "Dummy — LXC only"
 done
 
@@ -188,8 +190,10 @@ if ! dpkg -l pve-manager 2>/dev/null | grep -q '^ii'; then
   warn "pve-manager was removed — reinstalling..."
   # First fix any broken deps from the force-removal
   apt --fix-broken install -y -qq 2>/dev/null || apt-get install -f -y 2>&1 | tail -3 || true
-  DEBIAN_FRONTEND=noninteractive apt-get install -y pve-manager pve-container pve-cluster 2>&1 | tail -5 || \
-    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends pve-manager pve-container 2>&1 | tail -5
+  # qemu-utils nodig voor pve-manager dependency cloud-image-utils
+  dpkg -l qemu-utils 2>/dev/null | grep -q '^ii' || \
+    apt-get install -y -qq qemu-utils 2>&1 | tail -2 || true
+  DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends pve-manager pve-container pve-cluster 2>&1 | tail -5
 fi
 
 # Remove hold from pve-manager
