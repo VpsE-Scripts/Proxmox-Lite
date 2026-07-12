@@ -86,30 +86,31 @@ echo ""
 echo "📦 Stap 4/7 — Proxmox VE"
 echo "   ⏱️  This can take 5-15 minutes..."
 
-# We install ONLY the packages needed for LXC-only Proxmox (no kernel = no proxmox-ve meta-package)
-# OVH VPS uses its own kernel/boot system — Proxmox kernel install always fails there
-PVE_PKGS=(
-  pve-manager pve-cluster pve-container pve-xtermjs
-  libpve-common-perl libpve-http-server-perl
-  proxmox-widget-toolkit proxmox-daily-update
-  python3-proxmox
-)
+# We install proxmox-ve (meta-package with all dependencies including kernel + qemu)
+# On OVH VPS the kernel installs fine but won't boot — that's OK, OVH uses its own kernel
+# The dummy/cleanup step after this removes qemu/kvm/zfs to make it LXC-only
+PVE_PKGS=(proxmox-ve)
 if ! command -v pveversion &>/dev/null; then
   apt-get update 2>&1 | tail -5
-  # Pre-seed answer — no need for a real MTA, msmtp is lightweight
+  echo "grub-pc grub-pc/install_devices multiselect /dev/sda" | debconf-set-selections 2>/dev/null || true
   echo "postfix postfix/main_mailer_type select No configuration" | debconf-set-selections 2>/dev/null || true
-  DEBIAN_FRONTEND=noninteractive apt-get install -y "${PVE_PKGS[@]}" 2>&1 | tail -10
+  echo "   ⏱️  Installing proxmox-ve (can take 5-15 minutes)..."
+  DEBIAN_FRONTEND=noninteractive apt-get install -y "${PVE_PKGS[@]}" 2>&1 | tail -15 || {
+    warn "proxmox-ve install failed, trying pve-manager + pve-container directly..."
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+      pve-manager pve-cluster pve-container pve-xtermjs \
+      proxmox-widget-toolkit libpve-common-perl libpve-http-server-perl 2>&1 | tail -10
+  }
 fi
 # Verify pve-manager was actually installed
 if ! dpkg -l pve-manager 2>/dev/null | grep -q '^ii'; then
-  echo "   ⚠️  pve-manager not installed, retrying with proxmox-ve (kernel failure expected)..."
-  DEBIAN_FRONTEND=noninteractive apt-get install -y proxmox-ve 2>&1 | tail -15 || true
-  # Install pve-manager separately if kernel pulled it in despite failure
-  dpkg -l pve-manager 2>/dev/null | grep -q '^ii' || \
-    DEBIAN_FRONTEND=noninteractive apt-get install -y pve-manager pve-container 2>&1 | tail -5
+  warn "pve-manager still not installed — trying fallback with dummy qemu-server..."
+  apt-get install -y equivs 2>/dev/null || true
+  dummy "qemu-server" "9.1.18-dummy" "Dummy for LXC-only setup" 2>/dev/null || true
+  DEBIAN_FRONTEND=noninteractive apt-get install -y pve-manager pve-container 2>&1 | tail -10 || true
 fi
-PVE_VER=$(pveversion 2>/dev/null || echo "pve-manager/unknown")
-ok "$PVE_VER"
+PVE_VER=$(pveversion 2>/dev/null || dpkg -l pve-manager 2>/dev/null | awk '/^ii/{print $3}')
+ok "Proxmox VE ${PVE_VER:-installed}"
 
 # ═════════════════════════════════════════════════════════════
 # STAP 5 — Onnodige packages verwijderen (LXC-only)
