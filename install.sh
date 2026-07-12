@@ -16,7 +16,7 @@ echo ""
 # ─── Prerequisites ──────────────────────────────────────────
 if [ "$EUID" -ne 0 ]; then
   if command -v sudo &>/dev/null; then
-    echo "🔄 Herstart met sudo..."
+    echo "🔄 Restarting with sudo..."
     exec sudo bash "$0" "$@"
   fi
   fail "Run as root"
@@ -24,7 +24,7 @@ fi
 PROXMOX_PASSWORD="${PROXMOX_PASSWORD:-VpsE}"
 DEBIAN_CODENAME=$(grep -oP 'VERSION_CODENAME=\K\w+' /etc/os-release 2>/dev/null || echo "")
 [ "$DEBIAN_CODENAME" = "bookworm" ] || [ "$DEBIAN_CODENAME" = "trixie" ] || \
-  fail "Alleen Debian 12 (bookworm) of 13 (trixie)"
+  fail "Only Debian 12 (bookworm) or 13 (trixie) supported"
 ok "Debian $DEBIAN_CODENAME"
 
 PUBLIC_IP=$(ip -4 route get 1.1.1.1 2>/dev/null | grep -oP 'src \K[0-9.]+')
@@ -67,9 +67,9 @@ ok "/etc/hosts: $PUBLIC_IP → $HOSTNAME"
 # STAP 3 — Root wachtwoord instellen (voor Proxmox Web UI)
 # ═════════════════════════════════════════════════════════════
 echo ""
-echo "🔑 Stap 3/7 — Root wachtwoord instellen"
+echo "🔑 Stap 3/7 — Set root password"
 echo "root:$PROXMOX_PASSWORD" | chpasswd
-ok "Root wachtwoord ingesteld"
+ok "Root password set"
 
 # ═════════════════════════════════════════════════════════════
 # STAP 4 — Proxmox VE installeren
@@ -89,7 +89,7 @@ ok "$(pveversion 2>/dev/null)"
 # STAP 4 — VM/ZFS/Ceph verwijderen (LXC-only)
 # ═════════════════════════════════════════════════════════════
 echo ""
-echo "🗑️  Stap 5/7 — VM/ZFS/Ceph verwijderen"
+echo "🗑️  Stap 5/7 — Remove VM/ZFS/Ceph"
 
 if ! command -v equivs-build &>/dev/null; then
   apt-get install -y -qq equivs 2>/dev/null
@@ -216,7 +216,7 @@ ok "NAT + DHCP actief (10.0.3.0/24)"
 # STAP 6 — vpse CLI installeren
 # ═════════════════════════════════════════════════════════════
 echo ""
-echo "🔧 Stap 7/7 — vpse CLI installeren"
+echo "🔧 Stap 7/7 — Install vpse CLI"
 
 cat > /usr/local/bin/vpse <<-'VPSEOF'
 #!/bin/bash
@@ -329,7 +329,7 @@ ok "vpse CLI geïnstalleerd"
 # STAP 7 — Services herstarten
 # ═════════════════════════════════════════════════════════════
 echo ""
-echo "🔄 Services herstarten"
+echo "🔄 Restarting services"
 
 systemctl restart pve-cluster pveproxy pvedaemon pvestatd 2>/dev/null || true
 
