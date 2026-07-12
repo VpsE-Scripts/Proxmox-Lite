@@ -4,7 +4,7 @@
 
 ## What is this?
 
-A one-shot installer that turns a plain Debian 12 VPS into a lightweight Proxmox VE — without the heavy VM, ZFS, or Ceph components. Just LXC containers with a NAT network and DHCP server, ready in minutes.
+A one-shot installer that turns a plain Debian 12 or 13 VPS into a lightweight Proxmox VE — without the heavy VM, ZFS, or Ceph components. Just LXC containers with a NAT network and DHCP server, ready in minutes.
 
 Perfect for VPS plans from OVHcloud, Hetzner, Netcup, or any provider where you get a single public IP.
 
@@ -22,10 +22,10 @@ Perfect for VPS plans from OVHcloud, Hetzner, Netcup, or any provider where you 
 
 ## Quick start
 
-Run this on a **fresh Debian 12 VPS** as root:
+Run this on a **fresh Debian 12 or 13 VPS** as root:
 
 ```bash
-curl -sL https://raw.githubusercontent.com/pixels2bits/vpse-proxmox-lite/main/install.sh | bash
+curl -sL https://raw.githubusercontent.com/JordyVansteenkiste/VpsE-Proxmox_lite/main/install.sh | bash
 ```
 
 That's it. After a few minutes you'll have:
