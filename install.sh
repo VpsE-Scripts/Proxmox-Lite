@@ -221,7 +221,11 @@ if ! iptables -t nat -C POSTROUTING -s 10.0.3.0/24 -j MASQUERADE 2>/dev/null; th
   iptables -A FORWARD -d 10.0.3.0/24 -m state --state RELATED,ESTABLISHED -j ACCEPT
 fi
 
+# Fix broken deps from dummy packages
+apt --fix-broken install -y -qq 2>/dev/null || true
+
 # iptables persistent
+mkdir -p /etc/iptables
 apt-get install -y -qq iptables-persistent 2>/dev/null || true
 netfilter-persistent save 2>/dev/null || iptables-save > /etc/iptables/rules.v4 2>/dev/null || true
 
