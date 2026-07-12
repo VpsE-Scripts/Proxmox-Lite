@@ -207,13 +207,17 @@ if ! ip link show vmbr0 2>/dev/null | grep -q "UP"; then
   MAIN_IF=$(ip -4 route get 1.1.1.1 | grep -oP 'dev \K\S+')
   MAIN_IP=$(ip -4 addr show "$MAIN_IF" | grep -oP 'inet \K[0-9.]+')
   MAIN_GW=$(ip -4 route | grep default | grep -oP 'via \K[0-9.]+')
-  echo "   Creating vmbr0 bridge on $MAIN_IF ($MAIN_IP)..."
-  ip link add name vmbr0 type bridge 2>/dev/null
+  MAIN_MAC=$(ip link show "$MAIN_IF" | grep -oP 'link/ether \K\S+' | head -1)
+  echo "   Creating vmbr0 bridge on $MAIN_IF ($MAIN_IP, MAC: $MAIN_MAC)..."
+  # Create bridge WITH the same MAC as the physical interface (OVH uses MAC filtering)
+  ip link add name vmbr0 address "$MAIN_MAC" type bridge 2>/dev/null
   ip link set vmbr0 up
-  ip addr del "$MAIN_IP/32" dev "$MAIN_IF" 2>/dev/null || true
+  # Add IP to bridge FIRST, then enslave the interface
   ip addr add "$MAIN_IP/32" dev vmbr0
   ip link set "$MAIN_IF" master vmbr0
   ip route add default via "$MAIN_GW" dev vmbr0 2>/dev/null || true
+  # Remove IP from physical interface LAST
+  ip addr del "$MAIN_IP/32" dev "$MAIN_IF" 2>/dev/null || true
   cat > /etc/network/interfaces <<-BRIDGEEOF
 auto lo
 iface lo inet loopback
