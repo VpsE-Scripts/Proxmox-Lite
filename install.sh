@@ -33,9 +33,8 @@ HOSTNAME=$(hostname)
 
 # ─── Proxmox node name ──────────────────────────────────────
 DEFAULT_NAME="pve"
-read -t 30 -p "Enter Proxmox node name [${DEFAULT_NAME}]: " PROXMOX_NAME
 PROXMOX_NAME="${PROXMOX_NAME:-$DEFAULT_NAME}"
-ok "Node name: $PROXMOX_NAME"
+echo "   Node name: $PROXMOX_NAME (set PROXMOX_NAME env var to change)"
 
 # ═════════════════════════════════════════════════════════════
 # STAP 1 — Proxmox repository
