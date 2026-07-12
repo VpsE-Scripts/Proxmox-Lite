@@ -12,7 +12,7 @@ curl -sL https://raw.githubusercontent.com/VpsE-Scripts/Proxmox-Lite/master/inst
 
 > The installer auto-detects if you're not root and uses `sudo`.
 
-> ⏱️ **Stap 4 (Proxmox VE)** kan 5-15 minuten duren — afhankelijk van je VPS. Even geduld, de installer geeft vanzelf de volgende stap.
+> ⏱️ **Step 4 (Proxmox VE)** can take 5-15 minutes depending on your VPS. Be patient, the installer will continue automatically.
 
 That's it. After a few minutes you'll have:
 
