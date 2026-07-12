@@ -97,6 +97,9 @@ ok "$(pveversion 2>/dev/null)"
 echo ""
 echo "🗑️  Stap 5/7 — Remove VM/ZFS/Ceph"
 
+# qemu-utils (qemu-img) is needed voor container disk images — installeer VOOR dummy packages
+apt-get install -y -qq qemu-utils 2>&1 | tail -2
+
 if ! command -v equivs-build &>/dev/null; then
   apt-get install -y -qq equivs 2>/dev/null
 fi
@@ -147,7 +150,6 @@ if ! zpool list &>/dev/null 2>&1; then
 fi
 
 dpkg --purge ceph-common ceph-fuse 2>/dev/null || true
-DEBIAN_FRONTEND=noninteractive apt-get install -y -qq qemu-utils 2>&1 | tail -2
 
 # Perl stubs voor pveproxy
 if [ ! -f /usr/share/perl5/PVE/QemuServer.pm ]; then
