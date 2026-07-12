@@ -187,7 +187,10 @@ fi
 # Safeguard: reinstall pve-manager if it was removed by cascading deps
 if ! dpkg -l pve-manager 2>/dev/null | grep -q '^ii'; then
   warn "pve-manager was removed — reinstalling..."
-  apt-get install -y pve-manager pve-container pve-cluster 2>&1 | tail -5
+  # First fix any broken deps from the force-removal
+  apt --fix-broken install -y -qq 2>/dev/null || apt-get install -f -y 2>&1 | tail -3 || true
+  DEBIAN_FRONTEND=noninteractive apt-get install -y pve-manager pve-container pve-cluster 2>&1 | tail -5 || \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends pve-manager pve-container 2>&1 | tail -5
 fi
 
 ok "LXC-only cleanup done"
