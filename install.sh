@@ -147,7 +147,7 @@ if ! zpool list &>/dev/null 2>&1; then
 fi
 
 dpkg --purge ceph-common ceph-fuse 2>/dev/null || true
-apt-get install -y -qq qemu-utils 2>/dev/null
+DEBIAN_FRONTEND=noninteractive apt-get install -y -qq qemu-utils 2>&1 | tail -2
 
 # Perl stubs voor pveproxy
 if [ ! -f /usr/share/perl5/PVE/QemuServer.pm ]; then
