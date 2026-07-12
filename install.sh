@@ -202,44 +202,16 @@ echo "🌐 Stap 6/7 — NAT + DHCP"
 sysctl -w net.ipv4.ip_forward=1 >/dev/null
 echo 'net.ipv4.ip_forward=1' > /etc/sysctl.d/99-vpse.conf
 
-# Bridge gateway
+# Bridge for containers (internal only — public IP stays on main interface)
 if ! ip link show vmbr0 2>/dev/null | grep -q "UP"; then
-  MAIN_IF=$(ip -4 route get 1.1.1.1 | grep -oP 'dev \K\S+')
-  MAIN_IP=$(ip -4 addr show "$MAIN_IF" | grep -oP 'inet \K[0-9.]+')
-  MAIN_GW=$(ip -4 route | grep default | grep -oP 'via \K[0-9.]+')
-  MAIN_MAC=$(ip link show "$MAIN_IF" | grep -oP 'link/ether \K\S+' | head -1)
-  echo "   Creating vmbr0 bridge on $MAIN_IF ($MAIN_IP, MAC: $MAIN_MAC)..."
-  # Create bridge WITH the same MAC as the physical interface (OVH uses MAC filtering)
-  ip link add name vmbr0 address "$MAIN_MAC" type bridge 2>/dev/null
+  echo "   Creating vmbr0 bridge for containers (10.0.3.1/24)..."
+  ip link add name vmbr0 type bridge 2>/dev/null
   ip link set vmbr0 up
-  # Add IP to bridge FIRST, then enslave the interface
-  ip addr add "$MAIN_IP/32" dev vmbr0
-  ip link set "$MAIN_IF" master vmbr0
-  ip route add default via "$MAIN_GW" dev vmbr0 2>/dev/null || true
-  # Remove IP from physical interface LAST
-  ip addr del "$MAIN_IP/32" dev "$MAIN_IF" 2>/dev/null || true
-  cat > /etc/network/interfaces <<-BRIDGEEOF
-auto lo
-iface lo inet loopback
-
-auto $MAIN_IF
-iface $MAIN_IF inet manual
-
-auto vmbr0
-iface vmbr0 inet static
-  address $MAIN_IP/32
-  gateway $MAIN_GW
-  bridge_ports $MAIN_IF
-  bridge_stp off
-  bridge_fd 0
-BRIDGEEOF
-  ok "Bridge vmbr0 created ($MAIN_IP → vmbr0)"
+  ip addr add 10.0.3.1/24 dev vmbr0
+  ok "Bridge vmbr0 created (10.0.3.1/24 for containers)"
 fi
 if ! ip addr show vmbr0 2>/dev/null | grep -q "10.0.3.1"; then
   ip addr add 10.0.3.1/24 dev vmbr0 2>/dev/null || true
-  if ! grep -q "10.0.3.1" /etc/network/interfaces 2>/dev/null; then
-    echo "post-up ip addr add 10.0.3.1/24 dev vmbr0" >> /etc/network/interfaces
-  fi
 fi
 
 # NAT masquerade
