@@ -86,20 +86,38 @@ echo ""
 echo "📦 Stap 4/7 — Proxmox VE"
 echo "   ⏱️  This can take 5-15 minutes..."
 
+# We install ONLY the packages needed for LXC-only Proxmox (no kernel = no proxmox-ve meta-package)
+# OVH VPS uses its own kernel/boot system — Proxmox kernel install always fails there
+PVE_PKGS=(
+  pve-manager pve-cluster pve-container pve-xtermjs
+  libpve-common-perl libpve-http-server-perl
+  proxmox-widget-toolkit proxmox-daily-update
+  python3-proxmox
+)
 if ! command -v pveversion &>/dev/null; then
-  apt-get update -qq 2>/dev/null || apt-get update 2>&1 | tail -3
-  echo "grub-pc grub-pc/install_devices multiselect /dev/sda" | debconf-set-selections 2>/dev/null || true
-  DEBIAN_FRONTEND=noninteractive apt-get install -y -qq proxmox-ve 2>&1 | tail -3
+  apt-get update 2>&1 | tail -5
+  # Pre-seed answer — no need for a real MTA, msmtp is lightweight
+  echo "postfix postfix/main_mailer_type select No configuration" | debconf-set-selections 2>/dev/null || true
+  DEBIAN_FRONTEND=noninteractive apt-get install -y "${PVE_PKGS[@]}" 2>&1 | tail -10
 fi
-ok "$(pveversion 2>/dev/null)"
+# Verify pve-manager was actually installed
+if ! dpkg -l pve-manager 2>/dev/null | grep -q '^ii'; then
+  echo "   ⚠️  pve-manager not installed, retrying with proxmox-ve (kernel failure expected)..."
+  DEBIAN_FRONTEND=noninteractive apt-get install -y proxmox-ve 2>&1 | tail -15 || true
+  # Install pve-manager separately if kernel pulled it in despite failure
+  dpkg -l pve-manager 2>/dev/null | grep -q '^ii' || \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y pve-manager pve-container 2>&1 | tail -5
+fi
+PVE_VER=$(pveversion 2>/dev/null || echo "pve-manager/unknown")
+ok "$PVE_VER"
 
 # ═════════════════════════════════════════════════════════════
-# STAP 5 — VM/ZFS/Ceph verwijderen (LXC-only)
+# STAP 5 — Onnodige packages verwijderen (LXC-only)
 # ═════════════════════════════════════════════════════════════
 echo ""
-echo "🗑️  Stap 5/7 — Remove VM/ZFS/Ceph"
+echo "🗑️  Stap 5/7 — Cleanup (LXC-only)"
 
-# Temporarily disable pve-apt-hook (replace with no-op to keep dpkg happy)
+# Temporarily disable pve-apt-hook (replaces with no-op) so dpkg stays happy
 PVE_HOOK="/usr/share/proxmox-ve/pve-apt-hook"
 if [ -f "$PVE_HOOK" ] && ! grep -q "VpsE" "$PVE_HOOK" 2>/dev/null; then
   cp "$PVE_HOOK" "${PVE_HOOK}.bak" 2>/dev/null || true
@@ -111,16 +129,17 @@ NOOP
   chmod 755 "$PVE_HOOK"
 fi
 
-# qemu-utils (qemu-img) is needed for container disk images — install BEFORE dummy packages
-apt-get install -y -qq qemu-utils 2>&1 | tail -2 || true
+# qemu-utils is needed for container disk images — install if missing
+dpkg -l qemu-utils 2>/dev/null | grep -q '^ii' || \
+  apt-get install -y -qq qemu-utils 2>&1 | tail -2 || true
 
+# Only create dummies for packages that might have been pulled in
 if ! command -v equivs-build &>/dev/null; then
   apt-get install -y -qq equivs 2>/dev/null
 fi
-
 dummy() {
   local name="$1" ver="$2" desc="$3"
-  dpkg -l "$name" 2>/dev/null | grep -q "^ii" && return 0
+  dpkg -l "$name" 2>/dev/null | grep -q "^ii" || return 0
   local d; d=$(mktemp -d)
   cat > "$d/control" <<-EOF
 Section: misc
@@ -137,13 +156,10 @@ EOF
   rm -rf "$d"
 }
 
-dummy "qemu-server"  "9.1.18-dummy" "Dummy — LXC only"
-dummy "pve-qemu-kvm" "11.0.0-dummy" "Dummy — LXC only"
-dummy "spiceterm"    "3.4.2-dummy"  "Dummy — LXC only"
-dummy "ceph-common"  "19.2.3-dummy" "Dummy — geen Ceph"
-dummy "ceph-fuse"    "19.2.3-dummy" "Dummy — geen Ceph"
-
-touch /please-remove-proxmox-ve 2>/dev/null || true
+# Remove packages only if they are installed (proxmox-ve fallback path)
+for pkg in qemu-server pve-qemu-kvm spiceterm; do
+  dpkg -l "$pkg" 2>/dev/null | grep -q '^ii' && dummy "$pkg" "9.1.18-dummy" "Dummy — LXC only"
+done
 
 dpkg --remove --force-depends \
   pve-qemu-kvm spiceterm \
@@ -163,22 +179,9 @@ if ! zpool list &>/dev/null 2>&1; then
     2>/dev/null || true
 fi
 
-dpkg --purge ceph-common ceph-fuse 2>/dev/null || true
+# No perl stubs needed — we only install pve-manager, not qemu-server
 
-# Perl stubs voor pveproxy
-if [ ! -f /usr/share/perl5/PVE/QemuServer.pm ]; then
-  apt-get download qemu-server 2>/dev/null || true
-  mkdir -p /tmp/qemu-extract
-  dpkg-deb -x qemu-server_*.deb /tmp/qemu-extract 2>/dev/null || true
-  if [ -d /tmp/qemu-extract/usr/share/perl5/PVE ]; then
-    cp -r /tmp/qemu-extract/usr/share/perl5/PVE/API2/Qemu \
-      /tmp/qemu-extract/usr/share/perl5/PVE/Qemu* \
-      /usr/share/perl5/PVE/ 2>/dev/null || true
-  fi
-  rm -rf /tmp/qemu-extract qemu-server_*.deb
-fi
-
-ok "LXC-only: VM/ZFS/Ceph verwijderd"
+ok "LXC-only cleanup done"
 
 # ═════════════════════════════════════════════════════════════
 # STAP 5 — Storage configuratie (rootdir toestaan voor LXC)
@@ -377,6 +380,27 @@ systemctl restart pve-cluster pveproxy pvedaemon pvestatd 2>/dev/null || true
 
 # Restore pve-apt-hook (was replaced with no-op during package removal)
 [ -f "${PVE_HOOK}.bak" ] && cp "${PVE_HOOK}.bak" "$PVE_HOOK" 2>/dev/null || true
+
+# ═════════════════════════════════════════════════════════════
+# Verification — check critical components
+# ═════════════════════════════════════════════════════════════
+echo ""
+echo "🔍 Verification"
+
+TPLPATH="/usr/share/pve-manager/index.html.tpl"
+if [ -f "$TPLPATH" ]; then
+  ok "pve-manager template found: $TPLPATH"
+else
+  warn "Template $TPLPATH missing — pveproxy may not serve the Web UI"
+  echo "   If the Web UI shows 'file error', reinstall pve-manager:"
+  echo "   apt-get install --reinstall pve-manager"
+fi
+
+if systemctl is-active --quiet pveproxy 2>/dev/null; then
+  ok "pveproxy is running"
+else
+  warn "pveproxy not running — try: systemctl restart pveproxy"
+fi
 
 echo ""
 echo "╔══════════════════════════════════╗"
