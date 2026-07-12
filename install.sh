@@ -76,6 +76,7 @@ ok "Root wachtwoord ingesteld"
 # ═════════════════════════════════════════════════════════════
 echo ""
 echo "📦 Stap 4/7 — Proxmox VE"
+echo "   ⏱️  Dit kan 5-15 minuten duren..."
 
 if ! command -v pveversion &>/dev/null; then
   apt-get update -qq 2>/dev/null || apt-get update 2>&1 | tail -3
