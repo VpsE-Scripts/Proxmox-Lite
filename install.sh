@@ -32,9 +32,9 @@ PUBLIC_IP=$(ip -4 route get 1.1.1.1 2>/dev/null | grep -oP 'src \K[0-9.]+')
 HOSTNAME=$(hostname)
 
 # ─── Proxmox node name ──────────────────────────────────────
-DEFAULT_NAME="pve"
+DEFAULT_NAME="${HOSTNAME:-pve}"
 PROXMOX_NAME="${PROXMOX_NAME:-$DEFAULT_NAME}"
-echo "   Node name: $PROXMOX_NAME (set PROXMOX_NAME env var to change)"
+echo "   Node name: $PROXMOX_NAME"
 
 # ═════════════════════════════════════════════════════════════
 # STAP 1 — Proxmox repository
