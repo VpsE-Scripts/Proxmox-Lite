@@ -149,15 +149,18 @@ Section: misc
 Priority: optional
 Standards-Version: 4.7.0
 Package: $name
-Version: 999:999.999-vpse
+Version: 9999.99.99-vpse
 Maintainer: VpsE Proxmox Lite <root@localhost>
 Provides: $name
 Description: $desc
 EOF
   (cd "$d" && equivs-build control >/dev/null 2>&1)
-  dpkg -i "${d}/${name}_999:999.999-vpse_all.deb" 2>/dev/null || true
+  dpkg -i "${d}/${name}_9999.99.99-vpse_all.deb" 2>/dev/null || true
   rm -rf "$d"
 }
+
+# Protect pve-manager from cascading removal
+apt-mark hold pve-manager 2>/dev/null || true
 
 # Remove packages only if they are installed (proxmox-ve fallback path)
 for pkg in qemu-server pve-qemu-kvm spiceterm; do
@@ -192,6 +195,9 @@ if ! dpkg -l pve-manager 2>/dev/null | grep -q '^ii'; then
   DEBIAN_FRONTEND=noninteractive apt-get install -y pve-manager pve-container pve-cluster 2>&1 | tail -5 || \
     DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends pve-manager pve-container 2>&1 | tail -5
 fi
+
+# Remove hold from pve-manager
+apt-mark unhold pve-manager 2>/dev/null || true
 
 ok "LXC-only cleanup done"
 
