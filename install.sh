@@ -30,13 +30,18 @@ HOSTNAME=$(hostname)
 echo ""
 echo "📦 Stap 1/6 — Proxmox repository"
 
-if [ ! -f /etc/apt/sources.list.d/pve.list ]; then
-  echo "deb http://download.proxmox.com/debian/pve $DEBIAN_CODENAME pve-no-subscription" \
+echo "deb http://download.proxmox.com/debian/pve $DEBIAN_CODENAME pve-no-subscription" \
     > /etc/apt/sources.list.d/pve.list
+curl -fsSL --insecure https://download.proxmox.com/debian/proxmox-release-$DEBIAN_CODENAME.gpg \
+    -o /etc/apt/trusted.gpg.d/proxmox.gpg || {
+  warn "GPG key download failed, retrying via insecure..."
   curl -fsSL --insecure https://download.proxmox.com/debian/proxmox-release-$DEBIAN_CODENAME.gpg \
     -o /etc/apt/trusted.gpg.d/proxmox.gpg
-  apt-get update -qq
-fi
+}
+apt-get update -qq 2>/dev/null || {
+  warn "apt-get update failed, retrying without quiet..."
+  apt-get update 2>&1 | tail -5
+}
 ok "Repository gereed"
 
 # ═════════════════════════════════════════════════════════════
