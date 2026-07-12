@@ -6,11 +6,14 @@
 
 Run this on a **fresh Debian 12 or 13 VPS** as your user (debian, admin, etc.):
 
+> Optionally set a custom Proxmox node name first:
+> ```bash
+> hostnamectl set-hostname VpsE   # or any name you want
+> ```
+
 ```bash
 curl -sL https://raw.githubusercontent.com/VpsE-Scripts/Proxmox-Lite/master/install.sh | bash
 ```
-
-> Set a custom Proxmox node name: `PROXMOX_NAME=myhost curl -sL https://raw.githubusercontent.com/VpsE-Scripts/Proxmox-Lite/master/install.sh | bash`
 
 > The installer auto-detects if you're not root and uses `sudo`.
 
