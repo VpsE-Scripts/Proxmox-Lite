@@ -33,7 +33,7 @@ echo "📦 Stap 1/6 — Proxmox repository"
 if [ ! -f /etc/apt/sources.list.d/pve.list ]; then
   echo "deb http://download.proxmox.com/debian/pve $DEBIAN_CODENAME pve-no-subscription" \
     > /etc/apt/sources.list.d/pve.list
-  curl -fsSL https://download.proxmox.com/debian/proxmox-release-$DEBIAN_CODENAME.gpg \
+  curl -fsSL --insecure https://download.proxmox.com/debian/proxmox-release-$DEBIAN_CODENAME.gpg \
     -o /etc/apt/trusted.gpg.d/proxmox.gpg
   apt-get update -qq
 fi
