@@ -39,7 +39,10 @@ That's it. After a few minutes you'll have:
 ### With DHCP (automatic IP)
 
 ```bash
-pct create 100 /var/lib/vz/template/cache/debian-12-standard_12.12-1_amd64.tar.zst \
+# First check which template is available
+ls /var/lib/vz/template/cache/debian-*-standard*
+
+pct create 100 /var/lib/vz/template/cache/debian-XX-standard_*.tar.zst \
   --hostname ct100 --storage local \
   --net0 name=eth0,bridge=vmbr0,ip=dhcp \
   --unprivileged 1 --rootfs local:4
@@ -66,7 +69,7 @@ Then create the container with `ip=dhcp` as above — dnsmasq will assign `10.0.
 ### With a static IP (no DHCP)
 
 ```bash
-pct create 100 /var/lib/vz/template/cache/debian-12-standard_12.12-1_amd64.tar.zst \
+pct create 100 /var/lib/vz/template/cache/debian-XX-standard_*.tar.zst \
   --hostname ct100 --storage local \
   --net0 name=eth0,bridge=vmbr0,ip=10.0.3.100/24,gw=10.0.3.1 \
   --unprivileged 1 --rootfs local:4
@@ -114,7 +117,7 @@ netfilter-persistent save
 
 ## Requirements
 
-- **OS:** Debian 12 (Bookworm)
+- **OS:** Debian 12 (Bookworm) or Debian 13 (Trixie)
 - **RAM:** 2 GB minimum (4 GB recommended for LXC workloads)
 - **Disk:** 20 GB minimum
 - **Arch:** x86_64 / amd64

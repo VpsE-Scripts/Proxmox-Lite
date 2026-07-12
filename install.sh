@@ -1,6 +1,6 @@
 #!/bin/bash
 # VpsE Proxmox Lite — one-shot installer
-# Van kale Debian 12 → Proxmox (LXC-only) + NAT + DHCP
+# Van kale Debian 12/13 → Proxmox (LXC-only) + NAT + DHCP
 set -euo pipefail
 
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; NC='\033[0m'
@@ -15,7 +15,10 @@ echo ""
 
 # ─── Prerequisites ──────────────────────────────────────────
 [ "$EUID" -eq 0 ] || fail "Run as root"
-grep -qi 'debian' /etc/os-release 2>/dev/null || fail "Alleen Debian 12"
+DEBIAN_CODENAME=$(grep -oP 'VERSION_CODENAME=\K\w+' /etc/os-release 2>/dev/null || echo "")
+[ "$DEBIAN_CODENAME" = "bookworm" ] || [ "$DEBIAN_CODENAME" = "trixie" ] || \
+  fail "Alleen Debian 12 (bookworm) of 13 (trixie)"
+ok "Debian $DEBIAN_CODENAME"
 
 PUBLIC_IP=$(ip -4 route get 1.1.1.1 2>/dev/null | grep -oP 'src \K[0-9.]+')
 [ -z "$PUBLIC_IP" ] && PUBLIC_IP=$(curl -s --connect-timeout 5 https://ifconfig.me 2>/dev/null || true)
@@ -28,9 +31,9 @@ echo ""
 echo "📦 Stap 1/6 — Proxmox repository"
 
 if [ ! -f /etc/apt/sources.list.d/pve.list ]; then
-  echo "deb http://download.proxmox.com/debian/pve bookworm pve-no-subscription" \
+  echo "deb http://download.proxmox.com/debian/pve $DEBIAN_CODENAME pve-no-subscription" \
     > /etc/apt/sources.list.d/pve.list
-  curl -fsSL https://download.proxmox.com/debian/proxmox-release-bookworm.gpg \
+  curl -fsSL https://download.proxmox.com/debian/proxmox-release-$DEBIAN_CODENAME.gpg \
     -o /etc/apt/trusted.gpg.d/proxmox.gpg
   apt-get update -qq
 fi
@@ -204,7 +207,9 @@ echo "  Web UI:  https://$PUBLIC_IP:8006"
 echo "  SSH:     ssh root@$PUBLIC_IP"
 echo ""
 echo "  Container aanmaken met DHCP IP:"
-echo "    pct create 100 /var/lib/vz/template/cache/debian-12-standard_12.12-1_amd64.tar.zst \\"
+echo "    # Zoek de beschikbare template in /var/lib/vz/template/cache/"
+echo "    ls /var/lib/vz/template/cache/debian-*-standard*"
+echo "    pct create 100 /var/lib/vz/template/cache/debian-XX-standard_*.tar.zst \\"
 echo "      --hostname ct100 --storage local \\"
 echo "      --net0 name=eth0,bridge=vmbr0,ip=dhcp \\"
 echo "      --unprivileged 1 --rootfs local:4"
