@@ -99,9 +99,17 @@ ok "$(pveversion 2>/dev/null)"
 echo ""
 echo "🗑️  Stap 5/7 — Remove VM/ZFS/Ceph"
 
-# Temporarily disable pve-apt-hook (it breaks when we remove packages)
+# Temporarily disable pve-apt-hook (replace with no-op to keep dpkg happy)
 PVE_HOOK="/usr/share/proxmox-ve/pve-apt-hook"
-[ -f "$PVE_HOOK" ] && mv "$PVE_HOOK" "${PVE_HOOK}.bak" 2>/dev/null || true
+if [ -f "$PVE_HOOK" ] && ! grep -q "VpsE" "$PVE_HOOK" 2>/dev/null; then
+  cp "$PVE_HOOK" "${PVE_HOOK}.bak" 2>/dev/null || true
+  cat > "$PVE_HOOK" <<-'NOOP'
+#!/bin/bash
+# Replaced by VpsE Proxmox Lite installer
+exit 0
+NOOP
+  chmod 755 "$PVE_HOOK"
+fi
 
 # qemu-utils (qemu-img) is needed for container disk images — install BEFORE dummy packages
 apt-get install -y -qq qemu-utils 2>&1 | tail -2 || true
@@ -387,8 +395,8 @@ echo "🔄 Restarting services"
 
 systemctl restart pve-cluster pveproxy pvedaemon pvestatd 2>/dev/null || true
 
-# Restore pve-apt-hook (was disabled during package removal)
-[ -f "${PVE_HOOK}.bak" ] && mv "${PVE_HOOK}.bak" "$PVE_HOOK" 2>/dev/null || true
+# Restore pve-apt-hook (was replaced with no-op during package removal)
+[ -f "${PVE_HOOK}.bak" ] && cp "${PVE_HOOK}.bak" "$PVE_HOOK" 2>/dev/null || true
 
 echo ""
 echo "╔══════════════════════════════════╗"
