@@ -10,6 +10,8 @@ Run this on a **fresh Debian 12 or 13 VPS** as your user (debian, admin, etc.):
 curl -sL https://raw.githubusercontent.com/VpsE-Scripts/Proxmox-Lite/master/install.sh | bash
 ```
 
+> Set a custom Proxmox node name: `PROXMOX_NAME=myhost curl -sL https://raw.githubusercontent.com/VpsE-Scripts/Proxmox-Lite/master/install.sh | bash`
+
 > The installer auto-detects if you're not root and uses `sudo`.
 
 > ⏱️ **Step 4 (Proxmox VE)** can take 5-15 minutes depending on your VPS. Be patient, the installer will continue automatically.
