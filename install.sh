@@ -58,8 +58,9 @@ echo ""
 echo "📦 Stap 3/6 — Proxmox VE"
 
 if ! command -v pveversion &>/dev/null; then
+  apt-get update -qq 2>/dev/null || apt-get update 2>&1 | tail -3
   echo "grub-pc grub-pc/install_devices multiselect /dev/sda" | debconf-set-selections 2>/dev/null || true
-  DEBIAN_FRONTEND=noninteractive apt-get install -y -qq proxmox-ve 2>&1 | tail -1
+  DEBIAN_FRONTEND=noninteractive apt-get install -y -qq proxmox-ve 2>&1 | tail -3
 fi
 ok "$(pveversion 2>/dev/null)"
 
