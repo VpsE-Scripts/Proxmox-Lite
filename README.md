@@ -7,7 +7,7 @@
 Run this on a **fresh Debian 12 or 13 VPS** as root:
 
 ```bash
-curl -sL https://raw.githubusercontent.com/JordyVansteenkiste/VpsE-Proxmox_lite/main/install.sh | bash
+curl -sL https://raw.githubusercontent.com/VpsE-Scripts/Proxmox-Lite/main/install.sh | bash
 ```
 
 That's it. After a few minutes you'll have:
