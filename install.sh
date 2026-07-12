@@ -44,10 +44,10 @@ echo "📦 Stap 1/7 — Proxmox repository"
 
 echo "deb http://download.proxmox.com/debian/pve $DEBIAN_CODENAME pve-no-subscription" \
     > /etc/apt/sources.list.d/pve.list
-# Disable enterprise repo (requires subscription) — trixie uses .sources (deb822)
+# Disable enterprise repo (requires subscription)
 sed -i 's/^deb/#deb/' /etc/apt/sources.list.d/pve-enterprise.list 2>/dev/null || true
-# trixie also creates pve-enterprise.sources (deb822 format) — disable all Suites lines
-sed -i '/^Suites:/s/.*/Suites: never/' /etc/apt/sources.list.d/pve-enterprise.sources 2>/dev/null || true
+# trixie uses .sources (deb822) format — just rename to disable
+mv /etc/apt/sources.list.d/pve-enterprise.sources /etc/apt/sources.list.d/pve-enterprise.sources.disabled 2>/dev/null || true
 curl -fsSL --insecure https://download.proxmox.com/debian/proxmox-release-$DEBIAN_CODENAME.gpg \
     -o /etc/apt/trusted.gpg.d/proxmox.gpg || {
   warn "GPG key download failed, retrying via insecure..."
