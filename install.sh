@@ -93,7 +93,7 @@ fi
 ok "$(pveversion 2>/dev/null)"
 
 # ═════════════════════════════════════════════════════════════
-# STAP 4 — VM/ZFS/Ceph verwijderen (LXC-only)
+# STAP 5 — VM/ZFS/Ceph verwijderen (LXC-only)
 # ═════════════════════════════════════════════════════════════
 echo ""
 echo "🗑️  Stap 5/7 — Remove VM/ZFS/Ceph"
@@ -166,7 +166,19 @@ fi
 ok "LXC-only: VM/ZFS/Ceph verwijderd"
 
 # ═════════════════════════════════════════════════════════════
-# STAP 5 — IP forwarding + NAT + DHCP
+# STAP 5 — Storage configuratie (rootdir toestaan voor LXC)
+# ═════════════════════════════════════════════════════════════
+echo ""
+echo "💾 Stap — Storage config"
+if grep -q 'content iso,vztmpl,backup' /etc/pve/storage.cfg 2>/dev/null; then
+  sed -i 's/content iso,vztmpl,backup/content iso,vztmpl,backup,rootdir/' /etc/pve/storage.cfg
+  ok "rootdir toegevoegd aan local storage"
+else
+  ok "Storage al correct geconfigureerd"
+fi
+
+# ═════════════════════════════════════════════════════════════
+# STAP 6 — IP forwarding + NAT + DHCP
 # ═════════════════════════════════════════════════════════════
 echo ""
 echo "🌐 Stap 6/7 — NAT + DHCP"
@@ -220,7 +232,7 @@ fi
 ok "NAT + DHCP actief (10.0.3.0/24)"
 
 # ═════════════════════════════════════════════════════════════
-# STAP 6 — vpse CLI installeren
+# STAP 7 — vpse CLI installeren
 # ═════════════════════════════════════════════════════════════
 echo ""
 echo "🔧 Stap 7/7 — Install vpse CLI"
