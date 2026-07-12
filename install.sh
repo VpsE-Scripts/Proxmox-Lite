@@ -139,27 +139,27 @@ if ! command -v equivs-build &>/dev/null; then
   apt-get install -y -qq equivs 2>/dev/null
 fi
 dummy() {
-  local name="$1" ver="$2" desc="$3"
-  dpkg -l "$name" 2>/dev/null | grep -q "^ii" || return 0
+  local name="$1" desc="$2"
+  dpkg -l "$name" 2>/dev/null | grep -q "^ii" || return 0  # skip if not installed
   local d; d=$(mktemp -d)
   cat > "$d/control" <<-EOF
 Section: misc
 Priority: optional
 Standards-Version: 4.7.0
 Package: $name
-Version: $ver
+Version: 999:999.999-vpse
 Maintainer: VpsE Proxmox Lite <root@localhost>
 Provides: $name
 Description: $desc
 EOF
   (cd "$d" && equivs-build control >/dev/null 2>&1)
-  dpkg -i "${d}/${name}_${ver}_all.deb" 2>/dev/null || true
+  dpkg -i "${d}/${name}_999:999.999-vpse_all.deb" 2>/dev/null || true
   rm -rf "$d"
 }
 
 # Remove packages only if they are installed (proxmox-ve fallback path)
 for pkg in qemu-server pve-qemu-kvm spiceterm; do
-  dpkg -l "$pkg" 2>/dev/null | grep -q '^ii' && dummy "$pkg" "9.1.18-dummy" "Dummy — LXC only"
+  dummy "$pkg" "Dummy — LXC only"
 done
 
 dpkg --remove --force-depends \
@@ -181,6 +181,12 @@ if ! zpool list &>/dev/null 2>&1; then
 fi
 
 # No perl stubs needed — we only install pve-manager, not qemu-server
+
+# Safeguard: reinstall pve-manager if it was removed by cascading deps
+if ! dpkg -l pve-manager 2>/dev/null | grep -q '^ii'; then
+  warn "pve-manager was removed — reinstalling..."
+  apt-get install -y pve-manager pve-container pve-cluster 2>&1 | tail -5
+fi
 
 ok "LXC-only cleanup done"
 
