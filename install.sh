@@ -191,10 +191,123 @@ fi
 ok "NAT + DHCP actief (10.0.3.0/24)"
 
 # ═════════════════════════════════════════════════════════════
-# STAP 6 — Services herstarten
+# STAP 6 — vpse CLI installeren
 # ═════════════════════════════════════════════════════════════
 echo ""
-echo "🔄 Stap 6/6 — Services herstarten"
+echo "🔧 Stap 6/7 — vpse CLI installeren"
+
+cat > /usr/local/bin/vpse <<-'VPSEOF'
+#!/bin/bash
+# VpsE — Proxmox VPS CLI: containers + port forwarding
+set -euo pipefail
+
+CONF="/etc/vpse/vpse.conf"; PORTS_DB="/etc/vpse/ports.txt"; DHCP_HOSTS="/etc/vpse/dhcp-hosts"
+BRIDGE="vmbr0"; SUBNET="10.0.3.0/24"; STORAGE="local"
+R='\033[0;31m'; G='\033[0;32m'; Y='\033[1;33m'; C='\033[0;36m'; N='\033[0m'
+ok()   { echo -e " ${G}✅${N} $1"; }; warn() { echo -e " ${Y}⚠️${N} $1"; }; fail() { echo -e " ${R}❌${N} $1"; exit 1; }
+
+get_ip() { local v="$1" i; i=$(pct config "$v" 2>/dev/null | grep -oP 'ip=\K[0-9.]+' | head -1); [ -n "$i" ] && [ "$i" != "dhcp" ] && echo "$i" && return 0; [ -f "$DHCP_HOSTS/$v.conf" ] && { i=$(grep -oP '10\.0\.3\.\d+' "$DHCP_HOSTS/$v.conf" 2>/dev/null); [ -n "$i" ] && echo "$i" && return 0; }; echo "10.0.3.$v"; }
+valid_vmid() { [[ "$1" =~ ^[0-9]+$ ]] && [ "$1" -ge 100 ] && [ "$1" -le 999 ]; }
+valid_port() { [[ "$1" =~ ^[0-9]+$ ]] && [ "$1" -ge 1 ] && [ "$1" -le 65535 ]; }
+sv_ipt() { command -v netfilter-persistent &>/dev/null && netfilter-persistent save 2>/dev/null || true; }
+dhcp_rld() { systemctl restart dnsmasq 2>/dev/null || true; }
+
+ports_load() { [ -f "$PORTS_DB" ] && grep -v '^#' "$PORTS_DB" 2>/dev/null || true; }
+ports_del() { local v="$1" e="$2"; [ -f "$PORTS_DB" ] && sed -i "/^$v:.*:$e:/d" "$PORTS_DB" 2>/dev/null || true; }
+ports_delall() { local v="$1"; [ -f "$PORTS_DB" ] && sed -i "/^$v:/d" "$PORTS_DB" 2>/dev/null || true; }
+ports_set() { local v="$1" e="$2" s="$3"; [ -f "$PORTS_DB" ] && sed -i "s/^\($v:.*:$e:\).*/\1$s/" "$PORTS_DB" 2>/dev/null || true; }
+ports_add() { mkdir -p "$(dirname "$PORTS_DB")"; ports_del "$1" "$3"; echo "$1:$2:$3:active" >> "$PORTS_DB"; }
+
+fw_add() { local I="$1" X="$2" i="$3"; iptables -t nat -C PREROUTING -i "$BRIDGE" -p tcp --dport "$X" -j DNAT --to-destination "$I:$i" 2>/dev/null && return 0; iptables -t nat -A PREROUTING -i "$BRIDGE" -p tcp --dport "$X" -j DNAT --to-destination "$I:$i"; iptables -C FORWARD -p tcp -d "$I" --dport "$i" -j ACCEPT 2>/dev/null || iptables -A FORWARD -p tcp -d "$I" --dport "$i" -j ACCEPT; sv_ipt; }
+fw_rm() { local I="$1" X="$2" i="$3"; iptables -t nat -D PREROUTING -i "$BRIDGE" -p tcp --dport "$X" -j DNAT --to-destination "$I:$i" 2>/dev/null || true; iptables -D FORWARD -p tcp -d "$I" --dport "$i" -j ACCEPT 2>/dev/null || true; sv_ipt; }
+fw_rmall() { local I="$1"; iptables-save | grep -v "to:$I" | iptables-restore 2>/dev/null || true; sv_ipt; }
+dhcp_reg() { mkdir -p "$DHCP_HOSTS"; printf 'dhcp-host=%s,%s\n' "ct$1" "10.0.3.$1" > "$DHCP_HOSTS/$1.conf"; mkdir -p /etc/dnsmasq.d; printf 'conf-dir=%s,*.conf\n' "$DHCP_HOSTS" > /etc/dnsmasq.d/vpse-hosts.conf; dhcp_rld; }
+dhcp_unreg() { rm -f "$DHCP_HOSTS/$1.conf" 2>/dev/null || true; dhcp_rld; }
+
+cmd_ip() {
+  local v="$1"; valid_vmid "$v" || fail "VMID 100-999"; pct config "$v" &>/dev/null && fail "Exists"
+  echo "🔨 Container $v → 10.0.3.$v"
+  local t; t=$(ls /var/lib/vz/template/cache/debian-*-standard* 2>/dev/null | head -1)
+  [ -z "$t" ] && fail "Geen template in /var/lib/vz/template/cache/ — download er een met 'pveam download local debian-XX-standard'"
+  pct create "$v" "$t" --hostname "ct$v" --storage "$STORAGE" --net0 "name=eth0,bridge=$BRIDGE,ip=dhcp" --unprivileged 1 --features keyctl=1,nesting=1 --cores 1 --memory 512 --swap 512 --rootfs "$STORAGE:4" --password vpse4pve --start 0
+  dhcp_reg "$v"; pct start "$v"
+  ok "$v created (10.0.3.$v) — pct enter $v (wachtwoord: vpse4pve)"
+}
+
+cmd_delete() {
+  local v="$1"; valid_vmid "$v" || fail "VMID 100-999"; pct config "$v" &>/dev/null || fail "Not found"
+  local I; I=$(get_ip "$v"); [ -n "$I" ] && fw_rmall "$I"; pct stop "$v" --skiplock 2>/dev/null || true; pct destroy "$v" 2>/dev/null; ports_delall "$v"; dhcp_unreg "$v"
+  ok "$v deleted"
+}
+
+cmd_port() {
+  local v="$1" i="$2" x="$3"; valid_vmid "$v" || fail "VMID 100-999"; pct config "$v" &>/dev/null || fail "Not found"
+  valid_port "$i" || fail "Bad port"; [ -z "$x" ] && x="$i"; valid_port "$x" || fail "Bad port"
+  local I; I=$(get_ip "$v"); [ -z "$I" ] && fail "No IP"
+  local ex; ex=$(iptables -t nat -L PREROUTING -n 2>/dev/null | grep "dpt:$x " | grep -oP 'to:\K[0-9.]+' | head -1)
+  [ -n "$ex" ] && [ "$ex" != "$I" ] && fail "Port $x in use by $ex"
+  fw_add "$I" "$x" "$i"; ports_add "$v" "$i" "$x"; ok "host:$x → ${I}:$i"
+}
+
+cmd_stop() { local v="$1" x="$2"; valid_vmid "$v" || fail; valid_port "$x" || fail
+  local I i; I=$(get_ip "$v"); [ -z "$I" ] && fail; i=$(ports_load | grep "^$v:" | grep ":$x:" | cut -d: -f2 | head -1); [ -z "$i" ] && i="$x"
+  fw_rm "$I" "$x" "$i"; ports_set "$v" "$x" "stopped"; warn "$x stopped"
+}
+cmd_start() { local v="$1" x="$2"; valid_vmid "$v" || fail; valid_port "$x" || fail
+  local I i; I=$(get_ip "$v"); [ -z "$I" ] && fail; i=$(ports_load | grep "^$v:" | grep ":$x:" | cut -d: -f2 | head -1); [ -z "$i" ] && fail "No saved config"
+  fw_add "$I" "$x" "$i"; ports_set "$v" "$x" "active"; ok "$x re-enabled"
+}
+cmd_delport() { local v="$1" x="$2"; valid_vmid "$v" || fail; valid_port "$x" || fail
+  local I i; I=$(get_ip "$v"); [ -n "$I" ] && { i=$(ports_load | grep "^$v:" | grep ":$x:" | cut -d: -f2 | head -1); [ -z "$i" ] && i="$x"; fw_rm "$I" "$x" "$i"; }; ports_del "$v" "$x"; ok "$x removed"
+}
+
+cmd_list() {
+  printf "  %-6s %-16s %-16s %-8s %s\n" "VMID" "NAME" "IP" "STATUS" "PORTS"
+  echo "  ─────────────────────────────────────────────────────────────"
+  pct list 2>/dev/null | tail -n +2 | while read -r v s r; do
+    local n i p; n=$(pct config "$v" 2>/dev/null | grep hostname | awk '{print $2}'); i=$(get_ip "$v"); p=""
+    while IFS=: read -r vi ie xe se; do [ "$vi" = "$v" ] && p="$p $xe→$ie$( [ "$se" = "stopped" ] && echo '⏸')"; done <<< "$(ports_load)"
+    printf "  %-6s %-16s %-16s %-8s %s\n" "$v" "$n" "$i" "$s" "${p:- —}"
+  done
+  local f; f=$(iptables -t nat -L PREROUTING -n 2>/dev/null | grep "dpt:")
+  [ -n "$f" ] && { echo ""; echo "$f" | while read -r l; do echo "    host:$(echo "$l" | grep -oP 'dpt:\K[0-9]+') → $(echo "$l" | grep -oP 'to:\K[0-9.]+:[0-9]+')"; done; }
+}
+
+case "${1:-help}" in
+  ip) cmd_ip "$2" ;;
+  delete) cmd_delete "$2" ;;
+  port) cmd_port "$2" "$3" "$4" ;;
+  stop) cmd_stop "$2" "$3" ;;
+  start) cmd_start "$2" "$3" ;;
+  delport) cmd_delport "$2" "$3" ;;
+  list) cmd_list ;;
+  help|--help|-h)
+    echo "VpsE — Proxmox VPS CLI"
+    echo "  vpse ip <vmid>           → Container aanmaken (DHCP → 10.0.3.<vmid>)"
+    echo "  vpse delete <vmid>       → Container + poorten verwijderen"
+    echo "  vpse port <vmid> <int> <ext>  → Poort forwarden"
+    echo "  vpse stop <vmid> <ext>   → Poort uitzetten (config blijft)"
+    echo "  vpse start <vmid> <ext>  → Poort terug aanzetten"
+    echo "  vpse delport <vmid> <ext> → Poort definitief verwijderen"
+    echo "  vpse list                → Overzicht"
+    echo "Examples:"
+    echo "  vpse ip 100              # Container → 10.0.3.100"
+    echo "  vpse port 100 80 80      # host:80 → container:80"
+    echo "  vpse port 100 8069 8060  # host:8060 → container:8069"
+    echo "  vpse delete 100          # Container verwijderen"
+    ;;
+  *) echo "Use: vpse help"; exit 1 ;;
+esac
+VPSEOF
+
+chmod 755 /usr/local/bin/vpse
+ok "vpse CLI geïnstalleerd"
+
+# ═════════════════════════════════════════════════════════════
+# STAP 7 — Services herstarten
+# ═════════════════════════════════════════════════════════════
+echo ""
+echo "🔄 Stap 7/7 — Services herstarten"
 
 systemctl restart pve-cluster pveproxy pvedaemon pvestatd 2>/dev/null || true
 
@@ -206,21 +319,13 @@ echo ""
 echo "  Web UI:  https://$PUBLIC_IP:8006"
 echo "  SSH:     ssh root@$PUBLIC_IP"
 echo ""
-echo "  Container aanmaken met DHCP IP:"
-echo "    # Zoek de beschikbare template in /var/lib/vz/template/cache/"
-echo "    ls /var/lib/vz/template/cache/debian-*-standard*"
-echo "    pct create 100 /var/lib/vz/template/cache/debian-XX-standard_*.tar.zst \\"
-echo "      --hostname ct100 --storage local \\"
-echo "      --net0 name=eth0,bridge=vmbr0,ip=dhcp \\"
-echo "      --unprivileged 1 --rootfs local:4"
-echo ""
-echo "  Vast IP via DHCP (10.0.3.100):"
-echo "    echo 'dhcp-host=ct100,10.0.3.100' > /etc/vpse/dhcp-hosts/100.conf"
-echo "    systemctl restart dnsmasq"
-echo ""
-echo "  Port forwarden:"
-echo "    iptables -t nat -A PREROUTING -i vmbr0 -p tcp --dport 80 \\"
-echo "      -j DNAT --to-destination 10.0.3.100:80"
-echo "    iptables -A FORWARD -p tcp -d 10.0.3.100 --dport 80 -j ACCEPT"
-echo "    netfilter-persistent save"
+echo "  vpse commands:"
+echo "    vpse ip 100              → Container aanmaken"
+echo "    vpse port 100 80 80      → Poort forwarden"
+echo "    vpse stop 100 80         → Poort uitzetten"
+echo "    vpse start 100 80        → Poort aanzetten"
+echo "    vpse delport 100 80      → Poort verwijderen"
+echo "    vpse delete 100          → Container verwijderen"
+echo "    vpse list                → Overzicht"
+echo "    vpse help                → Alle commando's"
 echo ""

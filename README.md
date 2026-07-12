@@ -33,6 +33,47 @@ That's it. After a few minutes you'll have:
 - Proxmox Web UI at `https://<your-vps-ip>:8006`
 - NAT + DHCP ready on `vmbr0` (subnet `10.0.3.0/24`)
 - All VM/ZFS/Ceph packages stripped out
+- The **`vpse`** CLI tool for container and port management
+
+## vpse CLI
+
+After installation, the `vpse` command is available for quick container and port management:
+
+| Command | Description |
+|---|---|
+| `vpse ip 100` | Create container with DHCP → `10.0.3.100` |
+| `vpse delete 100` | Remove container + all ports |
+| `vpse port 100 80 80` | Forward host:80 → container:80 |
+| `vpse stop 100 80` | Disable port (config saved) |
+| `vpse start 100 80` | Re-enable port |
+| `vpse delport 100 80` | Permanently remove port |
+| `vpse list` | Show all containers + ports |
+
+### Examples
+
+```bash
+# Create a container with a fixed IP via DHCP
+vpse ip 100
+
+# Forward ports
+vpse port 100 80 80      # HTTP
+vpse port 100 443 443    # HTTPS
+vpse port 100 3000 3000  # App
+
+# See what's running
+vpse list
+
+# Temporarily disable a port
+vpse stop 100 80
+
+# Re-enable it later
+vpse start 100 80
+
+# Remove container and all its ports
+vpse delete 100
+```
+
+> **Note:** Ports are persisted in `/etc/vpse/ports.txt` and survive reboots via `netfilter-persistent`.
 
 ## Creating your first container
 
