@@ -7,7 +7,7 @@
 Run this on a **fresh Debian 12 or 13 VPS** as your user (debian, admin, etc.):
 
 ```bash
-curl -sL https://raw.githubusercontent.com/VpsE-Scripts/Proxmox-Lite/master/install.sh | bash
+VpsE curl -sL https://raw.githubusercontent.com/VpsE-Scripts/Proxmox-Lite/master/install.sh | bash
 ```
 
 > Set a custom Proxmox node name: `PROXMOX_NAME=myhost curl -sL https://raw.githubusercontent.com/VpsE-Scripts/Proxmox-Lite/master/install.sh | bash`
