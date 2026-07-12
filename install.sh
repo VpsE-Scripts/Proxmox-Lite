@@ -31,6 +31,12 @@ PUBLIC_IP=$(ip -4 route get 1.1.1.1 2>/dev/null | grep -oP 'src \K[0-9.]+')
 [ -z "$PUBLIC_IP" ] && PUBLIC_IP=$(curl -s --connect-timeout 5 https://ifconfig.me 2>/dev/null || true)
 HOSTNAME=$(hostname)
 
+# ─── Proxmox node name ──────────────────────────────────────
+DEFAULT_NAME="pve"
+read -t 30 -p "Enter Proxmox node name [${DEFAULT_NAME}]: " PROXMOX_NAME
+PROXMOX_NAME="${PROXMOX_NAME:-$DEFAULT_NAME}"
+ok "Node name: $PROXMOX_NAME"
+
 # ═════════════════════════════════════════════════════════════
 # STAP 1 — Proxmox repository
 # ═════════════════════════════════════════════════════════════
@@ -58,10 +64,11 @@ echo ""
 echo "🔧 Stap 2/7 — /etc/hosts"
 
 sed -i '/127.0.1.1/d' /etc/hosts 2>/dev/null || true
+hostnamectl set-hostname "$PROXMOX_NAME" 2>/dev/null || hostname "$PROXMOX_NAME"
 if ! grep -q "$PUBLIC_IP" /etc/hosts 2>/dev/null; then
-  echo "$PUBLIC_IP $HOSTNAME" >> /etc/hosts
+  echo "$PUBLIC_IP $PROXMOX_NAME" >> /etc/hosts
 fi
-ok "/etc/hosts: $PUBLIC_IP → $HOSTNAME"
+ok "/etc/hosts: $PUBLIC_IP → $PROXMOX_NAME"
 
 # ═════════════════════════════════════════════════════════════
 # STAP 3 — Root wachtwoord instellen (voor Proxmox Web UI)
