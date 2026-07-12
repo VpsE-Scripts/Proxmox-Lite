@@ -209,7 +209,7 @@ netfilter-persistent save 2>/dev/null || iptables-save > /etc/iptables/rules.v4 
 
 # DHCP (dnsmasq)
 if ! command -v dnsmasq &>/dev/null; then
-  apt-get install -y -qq dnsmasq 2>/dev/null
+  apt-get install -y -qq dnsmasq 2>&1 | tail -2
 fi
 
 if [ ! -f /etc/dnsmasq.d/vpse.conf ]; then
