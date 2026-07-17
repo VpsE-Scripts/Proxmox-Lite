@@ -74,9 +74,9 @@ def dpkg_is_installed(pkg: str) -> bool:
         l.startswith("ii") for l in r.stdout.splitlines()
     )
 
-def make_dummy(pkg: str) -> bool:
+def make_dummy(pkg: str, force: bool = False) -> bool:
     """Create and install a dummy .deb for a package using dpkg-deb."""
-    if not dpkg_is_installed(pkg):
+    if not force and not dpkg_is_installed(pkg):
         return True  # not installed → no dummy needed
     with tempfile.TemporaryDirectory() as tmp:
         debdir = Path(tmp) / "pkg"
@@ -244,6 +244,11 @@ class ProxmoxLiteInstaller:
         Log.info("Removing real packages (QEMU, Ceph, ZFS)...")
         for chunk in [PVE_PKGS_TO_PURGE[i:i+5] for i in range(0, len(PVE_PKGS_TO_PURGE), 5)]:
             run(["dpkg", "--purge", "--force-depends"] + chunk, timeout=60)
+
+        # Recreate dummies (they were purged with the real packages — same names)
+        Log.info("Reinstalling dummies...")
+        for pkg in PVE_DUMMIES:
+            make_dummy(pkg, force=True)
 
         # Fix broken deps
         run(["apt", "--fix-broken", "install", "-y"], timeout=120)
