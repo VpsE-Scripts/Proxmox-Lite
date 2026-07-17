@@ -290,15 +290,46 @@ class ProxmoxLiteInstaller:
         storage_cfg = Path("/etc/pve/storage.cfg")
         if storage_cfg.exists():
             content = storage_cfg.read_text()
+            # Remove maxfiles (not supported in PVE 9.x for dir storage)
+            content = re.sub(r'\s*maxfiles\s+\d+\s*\n?', '', content)
             if "rootdir" not in content and "content iso,vztmpl,backup" in content:
                 content = content.replace("content iso,vztmpl,backup",
                                           "content iso,vztmpl,backup,rootdir")
                 storage_cfg.write_text(content)
                 Log.ok("rootdir added to local storage")
-            else:
+            elif "rootdir" in content:
                 Log.ok("Storage already configured correctly")
+            if "maxfiles" not in content:
+                storage_cfg.write_text(content)
         else:
             Log.warn("storage.cfg not found (will be created on first use)")
+
+    def download_template(self):
+        """Step 7b — Download Debian LXC template"""
+        Log.step(7.5, self.total_steps, "Download LXC template")
+        cache_dir = Path("/var/lib/vz/template/cache")
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        # Check if any debian template already exists
+        existing = list(cache_dir.glob("debian-*-standard*"))
+        if existing:
+            Log.ok(f"Template already exists: {existing[0].name}")
+            return
+        # Update template list
+        run(["pveam", "update"], timeout=60)
+        # Find the latest Debian template matching our codename
+        r = run(["pveam", "available"], timeout=30)
+        target = f"debian-{self.codename}-standard"
+        for line in r.stdout.splitlines():
+            if target in line and "amd64" in line:
+                template = line.split()[-1].strip()
+                Log.info(f"Downloading {template}...")
+                r2 = run(["pveam", "download", "local", template], timeout=300)
+                if r2.returncode == 0:
+                    Log.ok(f"Template downloaded: {template}")
+                else:
+                    Log.warn(f"Template download failed: {r2.stderr[:200]}")
+                return
+        Log.warn(f"No template found for {target}")
 
     def setup_network(self):
         """Stap 8 — vmbr0 bridge + NAT + DHCP"""
@@ -515,6 +546,7 @@ class ProxmoxLiteInstaller:
             self.install_proxmox,
             self.lxc_cleanup,
             self.configure_storage,
+            self.download_template,
             self.setup_network,
             self.install_vpse_cli,
             self.restart_services,
