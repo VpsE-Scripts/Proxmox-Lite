@@ -447,14 +447,14 @@ class ProxmoxLiteInstaller:
         vpse_script = textwrap.dedent("""\
         #!/bin/bash
         # VpsE — Proxmox VPS CLI: containers + port forwarding
-        set -euo pipefail
+        set -uo pipefail
 
         CONF="/etc/vpse/vpse.conf"; PORTS_DB="/etc/vpse/ports.txt"; DHCP_HOSTS="/etc/vpse/dhcp-hosts"
         BRIDGE="vmbr0"; SUBNET="10.0.3.0/24"; STORAGE="local"
         R='\\033[0;31m'; G='\\033[0;32m'; Y='\\033[1;33m'; C='\\033[0;36m'; N='\\033[0m'
         ok()   { echo -e " ${G}✅${N} $1"; }; warn() { echo -e " ${Y}⚠️${N} $1"; }; fail() { echo -e " ${R}❌${N} $1"; exit 1; }
 
-        get_ip() { local v="$1" i; i=$(pct config "$v" 2>/dev/null | grep -oP 'ip=\\K[0-9.]+' | head -1); [ -n "$i" ] && [ "$i" != "dhcp" ] && echo "$i" && return 0; [ -f "$DHCP_HOSTS/$v.conf" ] && { i=$(grep -oP '10\\.0\\.3\\.\\d+' "$DHCP_HOSTS/$v.conf" 2>/dev/null); [ -n "$i" ] && echo "$i" && return 0; }; echo "10.0.3.$v"; }
+        get_ip() { local v="$1" i; i=$(pct config "$v" 2>/dev/null | grep -aPo 'ip=\\K[0-9.]+' | head -1); [ -n "$i" ] && [ "$i" != "dhcp" ] && echo "$i" && return 0; [ -f "$DHCP_HOSTS/$v.conf" ] && { i=$(grep -aPo '10\\.0\\.3\\.\\d+' "$DHCP_HOSTS/$v.conf" 2>/dev/null); [ -n "$i" ] && echo "$i" && return 0; }; echo "10.0.3.$v"; }
         valid_vmid() { [[ "$1" =~ ^[0-9]+$ ]] && [ "$1" -ge 100 ] && [ "$1" -le 999 ]; }
         valid_port() { [[ "$1" =~ ^[0-9]+$ ]] && [ "$1" -ge 1 ] && [ "$1" -le 65535 ]; }
         sv_ipt() { command -v netfilter-persistent &>/dev/null && netfilter-persistent save 2>/dev/null || true; }
