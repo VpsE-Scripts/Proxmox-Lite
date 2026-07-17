@@ -16,17 +16,16 @@ GPG_URL = "https://download.proxmox.com/debian/proxmox-release-{codename}.gpg"
 DUMMY_VER = "9999.99.99-vpse"
 
 PVE_PKGS_TO_PURGE = [
-    # Safe to remove — no runtime impact on LXC/CLI
-    # Keep qemu-server (perl modules needed by pve-ha-manager/pve-container at runtime)
-    # Only remove pve-qemu-kvm (the KVM binary, ~100MB)
-    "pve-qemu-kvm", "spiceterm",
+    # Only remove packages that don't affect pvestatd/node status
+    # KEEP pve-qemu-kvm — pvestatd/PVE::QemuServer::Helpers needs the binary
+    "spiceterm",
     "pve-nvidia-vgpu-helper", "pve-esxi-import-tools",
     "pve-edk2-firmware-legacy", "pve-edk2-firmware-ovmf",
     "swtpm", "swtpm-tools", "swtpm-libs", "libspice-server1", "virtiofsd",
-    # Ceph — keep librados2 (runtime dep for perl toolchain), remove the rest
+    # Ceph — keep librados2 (runtime dep for perl toolchain)
     "ceph-common", "ceph-fuse", "libcephfs2",
     "librbd1", "librgw2", "python3-cephfs", "python3-ceph-common",
-    # ZFS — keep libs + utils (runtime dep), only remove zed
+    # ZFS — only remove zed (keep libs + utils for toolchain)
     "zfs-zed",
 ]
 
@@ -285,8 +284,21 @@ class ProxmoxLiteInstaller:
         Log.ok("LXC-only cleanup done")
 
     def init_cluster(self):
-        """Step 7a — Initialize corosync cluster (needed for single-node too)"""
-        Log.step(7, self.total_steps, "Cluster initialization")
+        """Step 7 — Initialize corosync cluster + create KVM stub"""
+        Log.step(7, self.total_steps, "Cluster + KVM stub")
+        
+        # Create KVM stub so pvestatd doesn't crash (pve-qemu-kvm purged)
+        kvm_stub = Path("/usr/local/bin/kvm-stub")
+        if not kvm_stub.exists():
+            kvm_stub.write_text("#!/bin/bash\necho \"QEMU emulator version 9.0.0 (stub)\"\n")
+            kvm_stub.chmod(0o755)
+        for link in ["/usr/bin/kvm", "/usr/lib/qemu/qemu-system-x86_64"]:
+            p = Path(link)
+            if not p.exists():
+                p.parent.mkdir(parents=True, exist_ok=True)
+                p.symlink_to("/usr/local/bin/kvm-stub")
+        
+        # Initialize corosync cluster
         if Path("/etc/pve/corosync.conf").exists():
             Log.ok("Cluster already configured")
             return
@@ -296,13 +308,10 @@ class ProxmoxLiteInstaller:
             Log.ok(f"Cluster '{cluster_name}' created")
         else:
             Log.warn(f"Cluster creation failed: {r.stderr[:200]}")
-            # Fallback: create minimal corosync.conf manually
-            Log.info("Creating minimal corosync config manually...")
-            # pvecm create already failed, try manual approach
-            run(["corosync-keygen"], timeout=30)
-            # Restart services
             run(["systemctl", "restart", "corosync", "pve-cluster"], timeout=30)
-            Log.warn("Cluster may need manual config")
+        
+        # Restart pvestatd so it picks up the stub
+        run(["systemctl", "restart", "pvestatd"], timeout=30)
 
     def configure_storage(self):
         """Stap 7 — Storage configuratie (rootdir toestaan voor LXC)"""
