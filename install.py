@@ -254,11 +254,14 @@ class ProxmoxLiteInstaller:
         run(["apt", "--fix-broken", "install", "-y"], timeout=120)
         run(["dpkg", "--configure", "-a"], timeout=60)
 
+        # Run --fix-broken again to ensure clean state
+        run(["apt", "--fix-broken", "install", "-y"], timeout=120)
+
         # Unhold pve-manager
         run(["apt-mark", "unhold", "pve-manager"], timeout=10)
 
         # Install qemu-utils (now safe — no conflict)
-        apt_install("qemu-utils")
+        run(["apt-get", "install", "-y", "qemu-utils"], timeout=60, env={**os.environ, "DEBIAN_FRONTEND": "noninteractive"})
 
         # Verify pve-manager survived
         if not dpkg_is_installed("pve-manager"):
@@ -328,15 +331,17 @@ class ProxmoxLiteInstaller:
         debconf_set("iptables-persistent iptables-persistent/autosave_v4 boolean true\n")
         debconf_set("iptables-persistent iptables-persistent/autosave_v6 boolean true\n")
         Path("/etc/iptables").mkdir(exist_ok=True)
-        apt_install("iptables-persistent")
+        env = {**os.environ, "DEBIAN_FRONTEND": "noninteractive"}
+        run(["apt-get", "install", "-y", "iptables-persistent"], timeout=120, env=env)
         run(["netfilter-persistent", "save"], timeout=30)
 
         # dnsmasq DHCP
         if not shutil.which("dnsmasq"):
-            apt_install("dnsmasq")
+            run(["apt-get", "install", "-y", "dnsmasq"], timeout=120, env=env)
 
         dns_conf = Path("/etc/dnsmasq.d/vpse.conf")
         if not dns_conf.exists():
+            dns_conf.parent.mkdir(parents=True, exist_ok=True)
             dns_conf.write_text(textwrap.dedent("""\
                 interface=vmbr0
                 bind-interfaces
