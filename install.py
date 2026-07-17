@@ -375,11 +375,23 @@ class ProxmoxLiteInstaller:
             run(["ip", "link", "add", "name", "vmbr0", "type", "bridge"], timeout=10)
             run(["ip", "link", "set", "vmbr0", "up"], timeout=10)
             run(["ip", "addr", "add", "10.0.3.1/24", "dev", "vmbr0"], timeout=10)
-            Log.ok("Bridge vmbr0 created")
+            # Register with Proxmox network config for Web UI DHCP support
+            run(["pvesh", "create", f"/nodes/{self.node_name}/network",
+                 "--type", "bridge", "--iface", "vmbr0",
+                 "--address", "10.0.3.1", "--netmask", "255.255.255.0",
+                 "--autostart", "1"], timeout=30)
+            Log.ok("Bridge vmbr0 created (Proxmox registered)")
         else:
             # Ensure IP is set
             if "10.0.3.1" not in run(["ip", "addr", "show", "vmbr0"], timeout=10).stdout:
                 run(["ip", "addr", "add", "10.0.3.1/24", "dev", "vmbr0"], timeout=10)
+            # Still register with Proxmox if not already registered
+            r2 = run(["pvesh", "get", f"/nodes/{self.node_name}/network"], timeout=15)
+            if "vmbr0" not in r2.stdout:
+                run(["pvesh", "create", f"/nodes/{self.node_name}/network",
+                     "--type", "bridge", "--iface", "vmbr0",
+                     "--address", "10.0.3.1", "--netmask", "255.255.255.0",
+                     "--autostart", "1"], timeout=30)
 
         # NAT masquerade
         sub = "10.0.3.0/24"
