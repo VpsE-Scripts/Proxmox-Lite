@@ -466,8 +466,8 @@ class ProxmoxLiteInstaller:
         ports_set() { local v="$1" e="$2" s="$3"; [ -f "$PORTS_DB" ] && sed -i "s/^\\($v:.*:$e:\\).*/\\1$s/" "$PORTS_DB" 2>/dev/null || true; }
         ports_add() { mkdir -p "$(dirname "$PORTS_DB")"; ports_del "$1" "$3"; echo "$1:$2:$3:active" >> "$PORTS_DB"; }
 
-        fw_add() { local I="$1" X="$2" i="$3"; iptables -t nat -C PREROUTING -i "$BRIDGE" -p tcp --dport "$X" -j DNAT --to-destination "$I:$i" 2>/dev/null && return 0; iptables -t nat -A PREROUTING -i "$BRIDGE" -p tcp --dport "$X" -j DNAT --to-destination "$I:$i"; iptables -C FORWARD -p tcp -d "$I" --dport "$i" -j ACCEPT 2>/dev/null || iptables -A FORWARD -p tcp -d "$I" --dport "$i" -j ACCEPT; sv_ipt; }
-        fw_rm() { local I="$1" X="$2" i="$3"; iptables -t nat -D PREROUTING -i "$BRIDGE" -p tcp --dport "$X" -j DNAT --to-destination "$I:$i" 2>/dev/null || true; iptables -D FORWARD -p tcp -d "$I" --dport "$i" -j ACCEPT 2>/dev/null || true; sv_ipt; }
+        fw_add() { local I="$1" X="$2" i="$3"; iptables -t nat -C PREROUTING -p tcp --dport "$X" -j DNAT --to-destination "$I:$i" 2>/dev/null && return 0; iptables -t nat -A PREROUTING -p tcp --dport "$X" -j DNAT --to-destination "$I:$i"; iptables -C FORWARD -p tcp -d "$I" --dport "$i" -j ACCEPT 2>/dev/null || iptables -A FORWARD -p tcp -d "$I" --dport "$i" -j ACCEPT; sv_ipt; }
+        fw_rm() { local I="$1" X="$2" i="$3"; iptables -t nat -D PREROUTING -p tcp --dport "$X" -j DNAT --to-destination "$I:$i" 2>/dev/null || true; iptables -D FORWARD -p tcp -d "$I" --dport "$i" -j ACCEPT 2>/dev/null || true; sv_ipt; }
         fw_rmall() { local I="$1"; iptables-save | grep -v "to:$I" | iptables-restore 2>/dev/null || true; sv_ipt; }
         dhcp_reg() { mkdir -p "$DHCP_HOSTS"; printf 'dhcp-host=%s,%s\\n' "ct$1" "10.0.3.$1" > "$DHCP_HOSTS/$1.conf"; mkdir -p /etc/dnsmasq.d; printf 'conf-dir=%s,*.conf\\n' "$DHCP_HOSTS" > /etc/dnsmasq.d/vpse-hosts.conf; dhcp_rld; }
         dhcp_unreg() { rm -f "$DHCP_HOSTS/$1.conf" 2>/dev/null || true; dhcp_rld; }
