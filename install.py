@@ -16,18 +16,24 @@ GPG_URL = "https://download.proxmox.com/debian/proxmox-release-{codename}.gpg"
 DUMMY_VER = "9999.99.99-vpse"
 
 PVE_PKGS_TO_PURGE = [
-    "qemu-server", "pve-qemu-kvm", "spiceterm",
-    "ceph-common", "ceph-fuse", "libcephfs2", "librados2",
-    "librbd1", "librgw2", "python3-cephfs", "python3-ceph-common",
+    # Safe to remove — no runtime impact on LXC/CLI
+    # Keep qemu-server (perl modules needed by pve-ha-manager/pve-container at runtime)
+    # Only remove pve-qemu-kvm (the KVM binary, ~100MB)
+    "pve-qemu-kvm", "spiceterm",
     "pve-nvidia-vgpu-helper", "pve-esxi-import-tools",
     "pve-edk2-firmware-legacy", "pve-edk2-firmware-ovmf",
     "swtpm", "swtpm-tools", "swtpm-libs", "libspice-server1", "virtiofsd",
-    "zfsutils-linux", "zfs-zed", "libzfs7linux", "libzpool7linux",
-    "libnvpair3linux", "libuutil3linux",
-    "pve-ha-manager",
+    # Ceph — keep librados2 (runtime dep for perl toolchain), remove the rest
+    "ceph-common", "ceph-fuse", "libcephfs2",
+    "librbd1", "librgw2", "python3-cephfs", "python3-ceph-common",
+    # ZFS — keep libs + utils (runtime dep), only remove zed
+    "zfs-zed",
 ]
 
-PVE_DUMMIES = PVE_PKGS_TO_PURGE + ["proxmox-ve"]
+# Packages that are completely replaced by dummies (no runtime perl modules needed)
+PURGE_PKG_DUMMIES = PVE_PKGS_TO_PURGE + [
+    "proxmox-ve",
+]
 
 # ─── Logging ────────────────────────────────────────────────────────
 class Log:
@@ -236,8 +242,8 @@ class ProxmoxLiteInstaller:
         run(["apt-mark", "hold", "pve-manager"], timeout=10)
 
         # Create dummies for ALL packages we want to replace
-        Log.info(f"Creating dummies for {len(PVE_DUMMIES)} packages...")
-        for pkg in PVE_DUMMIES:
+        Log.info(f"Creating dummies for {len(PURGE_PKG_DUMMIES)} packages...")
+        for pkg in PURGE_PKG_DUMMIES:
             make_dummy(pkg)
 
         # Force-purge the real packages
@@ -247,7 +253,7 @@ class ProxmoxLiteInstaller:
 
         # Recreate dummies (they were purged with the real packages — same names)
         Log.info("Reinstalling dummies...")
-        for pkg in PVE_DUMMIES:
+        for pkg in PURGE_PKG_DUMMIES:
             make_dummy(pkg, force=True)
 
         # Fix broken deps
