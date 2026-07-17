@@ -284,6 +284,26 @@ class ProxmoxLiteInstaller:
 
         Log.ok("LXC-only cleanup done")
 
+    def init_cluster(self):
+        """Step 7a — Initialize corosync cluster (needed for single-node too)"""
+        Log.step(7, self.total_steps, "Cluster initialization")
+        if Path("/etc/pve/corosync.conf").exists():
+            Log.ok("Cluster already configured")
+            return
+        cluster_name = f"vps-{self.node_name}"
+        r = run(["pvecm", "create", cluster_name], timeout=30)
+        if r.returncode == 0:
+            Log.ok(f"Cluster '{cluster_name}' created")
+        else:
+            Log.warn(f"Cluster creation failed: {r.stderr[:200]}")
+            # Fallback: create minimal corosync.conf manually
+            Log.info("Creating minimal corosync config manually...")
+            # pvecm create already failed, try manual approach
+            run(["corosync-keygen"], timeout=30)
+            # Restart services
+            run(["systemctl", "restart", "corosync", "pve-cluster"], timeout=30)
+            Log.warn("Cluster may need manual config")
+
     def configure_storage(self):
         """Stap 7 — Storage configuratie (rootdir toestaan voor LXC)"""
         Log.step(7, self.total_steps, "Storage configuration")
@@ -545,6 +565,7 @@ class ProxmoxLiteInstaller:
             self.set_root_password,
             self.install_proxmox,
             self.lxc_cleanup,
+            self.init_cluster,
             self.configure_storage,
             self.download_template,
             self.setup_network,
