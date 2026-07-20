@@ -16,6 +16,14 @@ Change `PROXMOX_NAME` and `PROXMOX_CLUSTER` to set a custom node and datacenter 
 
 > ⏱️ **Step 5 (Proxmox VE)** can take 5-15 minutes. The installer continues automatically.
 
+## Environment variables
+
+| Variable | Default | Description |
+|---|---|---|
+| `PROXMOX_NAME` | Current hostname | Proxmox node name |
+| `PROXMOX_CLUSTER` | `vps-{node}` | Cluster/datacenter name |
+| `PROXMOX_PASSWORD` | `VpsE` | Web UI root password |
+
 After completion you'll have:
 
 - Proxmox Web UI at `https://<your-vps-ip>:8006`
@@ -70,21 +78,6 @@ vpse rm 100
 
 > Ports are saved in `/etc/vpse/ports.txt` and survive reboots.
 > The installer also configures `iptables-persistent` so NAT rules persist.
-
-## Environment variables
-
-| Variable | Default | Description |
-|---|---|---|
-| `PROXMOX_NAME` | Current hostname | Proxmox node name |
-| `PROXMOX_CLUSTER` | `vps-{node}` | Cluster/datacenter name |
-| `PROXMOX_PASSWORD` | `VpsE` | Web UI root password |
-
-### Example with custom names
-
-```bash
-PROXMOX_NAME=webhost PROXMOX_CLUSTER=production \
-  curl -sL https://raw.githubusercontent.com/VpsE-Scripts/Proxmox-Lite/master/install.sh | bash
-```
 
 ## What gets installed
 
