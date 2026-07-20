@@ -1,3 +1,4 @@
+Warning: Permanently added '141.95.112.122' (ED25519) to the list of known hosts.
 #!/bin/bash
 # VpsE — Proxmox VPS CLI: containers + port forwarding
 set -uo pipefail
@@ -16,12 +17,17 @@ fail() { echo -e " ${R}XX${N} $1"; exit 1; }
 # ─── Helpers ──────────────────────────────────────────────
 get_ip() {
   local v="$1" i
-  i=$(pct config "$v" 2>/dev/null | grep -aPo 'ip=\K[0-9.]+' | head -1)
-  [ -n "$i" ] && [ "$i" != "dhcp" ] && echo "$i" && return 0
+  # Try pct exec to get actual IP from inside container
+  i=$(pct exec "$v" -- ip -4 addr show eth0 2>/dev/null | grep -oP 'inet \K[0-9.]+' | head -1)
+  [ -n "$i" ] && echo "$i" && return 0
+  # Fallback: check DHCP hosts file
   [ -f "$DHCP_HOSTS/$v.conf" ] && {
     i=$(grep -aPo '10\.0\.3\.\d+' "$DHCP_HOSTS/$v.conf" 2>/dev/null)
     [ -n "$i" ] && echo "$i" && return 0
   }
+  # Last resort: dnsmasq leases
+  i=$(grep "$v" /var/lib/misc/dnsmasq.leases 2>/dev/null | awk '{print $3}' | head -1)
+  [ -n "$i" ] && echo "$i" && return 0
   echo "10.0.3.$v"
 }
 
@@ -121,15 +127,27 @@ cmd_ip() {
 
 cmd_delete() {
   local v="$1"; valid_vmid "$v" || fail "VMID 100-999"
-  pct config "$v" &>/dev/null || fail "Not found"
-  local I; I=$(get_ip "$v"); [ -n "$I" ] && fw_rmall "$I"
-  pct stop "$v" --skiplock 2>/dev/null || true
-  pct destroy "$v" 2>/dev/null
+  local I; I=$(get_ip "$v")
   while IFS=: read -r id vmid rest; do
-    [ "$vmid" = "$v" ] && ports_del_id "$id"
+    if [ "$vmid" = "$v" ]; then
+      local i x s
+      IFS=: read -r id vmid i x s <<< "$id:$vmid:$rest"
+      [ -n "$I" ] && fw_rm "$I" "$x" "$i"
+      ports_del_id "$id"
+      ok "Port ID $id ($x) removed"
+    fi
   done < "$PORTS_DB"
   dhcp_unreg "$v"
-  ok "$v deleted"
+  ok "All ports for container $v removed"
+}
+
+cmd_destroy() {
+  local v="$1"; valid_vmid "$v" || fail "VMID 100-999"
+  pct config "$v" &>/dev/null || fail "Not found"
+  cmd_delete "$v"
+  pct stop "$v" --skiplock 2>/dev/null || true
+  pct destroy "$v" 2>/dev/null
+  ok "Container $v destroyed"
 }
 
 cmd_port() {
