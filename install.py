@@ -58,6 +58,7 @@ class ProxmoxLiteInstaller:
         self.codename = ""
         self.ip = ""
         self.node_name = os.environ.get("PROXMOX_NAME") or hostname() or "pve"
+        self.cluster_name = os.environ.get("PROXMOX_CLUSTER") or f"vps-{self.node_name}"
         self.pve_password = os.environ.get("PROXMOX_PASSWORD") or "VpsE"
         self.total_steps = 9
 
@@ -119,10 +120,9 @@ class ProxmoxLiteInstaller:
         Log.step(6, self.total_steps, "Cluster initialization")
         if Path("/etc/pve/corosync.conf").exists():
             Log.ok("Cluster already configured"); return
-        cluster_name = f"vps-{self.node_name}"
-        r = run(["pvecm", "create", cluster_name], timeout=30)
+        r = run(["pvecm", "create", self.cluster_name], timeout=30)
         if r.returncode == 0:
-            Log.ok(f"Cluster '{cluster_name}' created")
+            Log.ok(f"Cluster '{self.cluster_name}' created")
         else:
             Log.warn(f"Cluster creation failed: {r.stderr[:200]}")
             run(["systemctl", "restart", "corosync", "pve-cluster"], timeout=30)
