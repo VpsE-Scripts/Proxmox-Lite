@@ -59,7 +59,7 @@ class ProxmoxLiteInstaller:
         self.ip = ""
         self.node_name = os.environ.get("PROXMOX_NAME") or hostname() or "pve"
         self.pve_password = os.environ.get("PROXMOX_PASSWORD") or "VpsE"
-        self.total_steps = 10
+        self.total_steps = 9
 
     def check_prerequisites(self):
         Log.step(1, self.total_steps, "Prerequisites")
@@ -128,26 +128,8 @@ class ProxmoxLiteInstaller:
             run(["systemctl", "restart", "corosync", "pve-cluster"], timeout=30)
         run(["systemctl", "restart", "pvestatd"], timeout=30)
 
-    def download_template(self):
-        Log.step(7, self.total_steps, "Download LXC template")
-        cache = Path("/var/lib/vz/template/cache")
-        cache.mkdir(parents=True, exist_ok=True)
-        existing = list(cache.glob("debian-*-standard*"))
-        if existing: Log.ok(f"Template exists: {existing[0].name}"); return
-        run(["pveam", "update"], timeout=60)
-        r = run(["pveam", "available"], timeout=30)
-        target = f"debian-{self.codename}-standard"
-        for line in r.stdout.splitlines():
-            if target in line and "amd64" in line:
-                tpl = line.split()[-1].strip()
-                Log.info(f"Downloading {tpl}...")
-                run(["pveam", "download", "local", tpl], timeout=300)
-                Log.ok(f"Template downloaded: {tpl}")
-                return
-        Log.warn(f"No template found for {target}")
-
     def setup_network(self):
-        Log.step(8, self.total_steps, "Network: bridge + NAT + DHCP")
+        Log.step(7, self.total_steps, "Network: bridge + NAT + DHCP")
         run(["sysctl", "-w", "net.ipv4.ip_forward=1"], timeout=10)
         Path("/etc/sysctl.d/99-vpse.conf").write_text("net.ipv4.ip_forward=1\n")
         # vmbr0 bridge via Proxmox API
@@ -233,7 +215,7 @@ no-dhcp-interface=lo
         print(f"   Node: {self.node_name}, Debian: {self.codename}, IP: {self.ip}")
         steps = [self.check_prerequisites, self.setup_repo, self.configure_hosts,
                  self.set_root_password, self.install_proxmox, self.init_cluster,
-                 self.download_template, self.setup_network, self.install_vpse_cli,
+                 self.setup_network, self.install_vpse_cli,
                  self.restart_services, self.verify]
         for step_fn in steps:
             try: step_fn()
