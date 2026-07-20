@@ -14,11 +14,6 @@ curl -sL https://raw.githubusercontent.com/VpsE-Scripts/Proxmox-Lite/master/inst
 
 > ⏱️ **Step 5 (Proxmox VE)** can take 5-15 minutes. The installer continues automatically.
 
-To use custom names:
-
-```bash
-curl -sL https://raw.githubusercontent.com/VpsE-Scripts/Proxmox-Lite/master/install.sh | PROXMOX_NAME=creacher PROXMOX_CLUSTER=flock bash
-```
 
 After completion you'll have:
 
