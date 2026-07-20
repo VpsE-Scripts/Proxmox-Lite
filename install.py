@@ -151,16 +151,38 @@ class ProxmoxLiteInstaller:
         Log.step(7, self.total_steps, "Network: bridge + NAT + DHCP")
         run(["sysctl", "-w", "net.ipv4.ip_forward=1"], timeout=10)
         Path("/etc/sysctl.d/99-vpse.conf").write_text("net.ipv4.ip_forward=1\n")
-        # vmbr0 bridge via Proxmox API
-        r = run(["pvesh", "get", f"/nodes/{self.node_name}/network"], timeout=15)
-        if "vmbr0" not in r.stdout:
+        # vmbr0 bridge — persistent in /etc/network/interfaces
+        ifaces = Path("/etc/network/interfaces").read_text()
+        if "auto vmbr0" not in ifaces:
             Log.info("Creating vmbr0 bridge (10.0.3.1/24)...")
+            bridge_config = """
+
+auto vmbr0
+iface vmbr0 inet static
+    address 10.0.3.1/24
+    bridge-ports none
+    bridge-stp off
+    bridge-fd 0
+"""
+            with open("/etc/network/interfaces", "a") as f:
+                f.write(bridge_config)
+            run(["ip", "link", "add", "name", "vmbr0", "type", "bridge"], timeout=10)
+            run(["ip", "addr", "add", "10.0.3.1/24", "dev", "vmbr0"], timeout=10)
+            run(["ip", "link", "set", "vmbr0", "up"], timeout=10)
+            # Also register with Proxmox for Web UI display
             run(["pvesh", "create", f"/nodes/{self.node_name}/network",
                  "--type", "bridge", "--iface", "vmbr0",
                  "--address", "10.0.3.1", "--netmask", "255.255.255.0",
                  "--autostart", "1"], timeout=30)
-            run(["ip", "link", "set", "vmbr0", "up"], timeout=10)
-            Log.ok("Bridge vmbr0 created")
+            Log.ok("Bridge vmbr0 created (persistent)")
+        else:
+            # Ensure bridge exists (might be down after reboot)
+            r = run(["ip", "link", "show", "vmbr0"], timeout=10)
+            if "UP" not in r.stdout:
+                run(["ip", "link", "add", "name", "vmbr0", "type", "bridge"], timeout=10)
+                run(["ip", "addr", "add", "10.0.3.1/24", "dev", "vmbr0"], timeout=10)
+                run(["ip", "link", "set", "vmbr0", "up"], timeout=10)
+            Log.ok("Bridge vmbr0 already configured")
         # NAT
         sub = "10.0.3.0/24"
         r = run(["iptables", "-t", "nat", "-C", "POSTROUTING", "-s", sub, "-j", "MASQUERADE"], timeout=10)
