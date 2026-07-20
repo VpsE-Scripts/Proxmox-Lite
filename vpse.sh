@@ -124,18 +124,18 @@ case "${1:-help}" in
   rm)      cmd_rm "$2" ;;
   help|--help|-h)
     echo "VpsE CLI — port forwarding"
-    echo "  vpse mk <vmid> <int> <ext>       Nieuwe forward (krijgt ID)"
-    echo "  vpse list                        Alle forwards tonen"
-    echo "  vpse stop <ID>                   Forward uitzetten"
-    echo "  vpse start <ID>                  Forward aanzetten"
-    echo "  vpse delete <ID>                 Forward verwijderen"
-    echo "  vpse rm <vmid>                   Alle forwards van container wissen"
+    echo "  vpse mk <vmid> <int> <ext>       Create forward (gets ID)"
+    echo "  vpse list                        Show all forwards"
+    echo "  vpse stop <ID>                   Disable forward"
+    echo "  vpse start <ID>                  Enable forward"
+    echo "  vpse delete <ID>                 Remove forward"
+    echo "  vpse rm <vmid>                   Remove all forwards for a container"
     echo ""
-    echo "Voorbeelden:"
-    echo "  vpse mk 100 8069 9000    → ID 1"
+    echo "Examples:"
+    echo "  vpse mk 100 8069 8069    → ID 1"
     echo "  vpse stop 1              → stop ID 1"
-    echo "  vpse delete 1            → verwijder ID 1"
-    echo "  vpse rm 100              → alle forwards van container 100 weg"
+    echo "  vpse delete 1            → remove ID 1"
+    echo "  vpse rm 100              → remove all forwards for container 100"
     echo "  vpse list"
     ;;
   *) echo "Use: vpse help"; exit 1 ;;
