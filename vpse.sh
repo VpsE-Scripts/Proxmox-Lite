@@ -14,12 +14,18 @@ fail() { echo -e " ${R}XX${N} $1"; exit 1; }
 
 get_ip() {
   local v="$1" i
+  # Check dnsmasq leases first (most reliable)
+  i=$(grep " $v " /var/lib/misc/dnsmasq.leases 2>/dev/null | awk '{print $3}' | head -1)
+  [ -n "$i" ] && echo "$i" && return 0
+  i=$(grep "ct$v " /var/lib/misc/dnsmasq.leases 2>/dev/null | awk '{print $3}' | head -1)
+  [ -n "$i" ] && echo "$i" && return 0
+  # Try pct exec
   i=$(pct exec "$v" -- ip -4 addr show eth0 2>/dev/null | grep -oP 'inet \K[0-9.]+' | head -1)
   [ -n "$i" ] && echo "$i" && return 0
+  # Check DHCP hosts file
   [ -f "$DHCP_HOSTS/$v.conf" ] && { i=$(grep -aPo '10\.0\.3\.\d+' "$DHCP_HOSTS/$v.conf" 2>/dev/null); [ -n "$i" ] && echo "$i" && return 0; }
-  i=$(grep "$v" /var/lib/misc/dnsmasq.leases 2>/dev/null | awk '{print $3}' | head -1)
-  [ -n "$i" ] && echo "$i" && return 0
-  echo "10.0.3.$v"
+  # No fallback — fail instead of using wrong IP
+  fail "Could not determine IP for container $v (check dnsmasq leases)"
 }
 
 valid_vmid() { [[ "$1" =~ ^[0-9]+$ ]] && [ "$1" -ge 100 ] && [ "$1" -le 999 ]; }
