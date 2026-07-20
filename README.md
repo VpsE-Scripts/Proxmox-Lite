@@ -1,28 +1,33 @@
 # VpsE Proxmox Lite
 
-**Proxmox VE, stripped for LXC-only on a single-IP VPS — with NAT and DHCP out of the box.**
+**Proxmox VE installer — complete install + bridge + NAT + DHCP + port forwarding CLI.**
+
+Designed for single-IP VPS (OVH, Hetzner, etc.) where you want to run LXC containers behind NAT.
 
 ## Install
 
-Run this on a **fresh Debian 12 or 13 VPS** as your user (debian, admin, etc.):
+Run on a **fresh Debian 12 or 13 VPS** as your user (debian, admin, etc.):
 
-> Optionally set a custom Proxmox node name first:
-> ```bash
-> hostnamectl set-hostname VpsE   # or any name you want
-> ```
+Optionally set a custom node name first:
+
+```bash
+hostnamectl set-hostname VpsE   # or any name
+# Or use env vars:
+# PROXMOX_NAME=myhost PROXMOX_CLUSTER=mycluster curl -sL ... | bash
+```
 
 ```bash
 curl -sL https://raw.githubusercontent.com/VpsE-Scripts/Proxmox-Lite/master/install.sh | bash
 ```
 
-> The installer auto-detects if you're not root and uses `sudo`.
+> ⏱️ **Step 5 (Proxmox VE)** can take 5-15 minutes. The installer continues automatically.
 
-> ⏱️ **Step 4 (Proxmox VE)** can take 5-15 minutes depending on your VPS. Be patient, the installer will continue automatically.
-
-That's it. After a few minutes you'll have:
+After completion you'll have:
 
 - Proxmox Web UI at `https://<your-vps-ip>:8006`
-- The **`vpse`** CLI tool ready to use
+- **`vpse`** CLI tool for port forwarding
+- vmbr0 bridge with NAT + DHCP (containers get IPs automatically)
+- dnsmasq serving DHCP on `10.0.3.200-250`
 
 ## Proxmox Web UI
 
@@ -32,55 +37,69 @@ That's it. After a few minutes you'll have:
 | Username | `root` |
 | Password | `VpsE` |
 
-## First container (via Web UI)
-
-1. Open `https://<your-vps-ip>:8006` in your browser
-2. Log in with **root** / **VpsE**
-3. **Download a template:** `Datacenter → your-node → local (storage) → Templates → search "debian" → Download`
-4. **Create a container:** `Datacenter → your-node → right-click → Create CT`
-   - General: set VMID (e.g. 100), hostname, password
-   - Template: select the downloaded Debian template
-   - Network: set **IPv4 = DHCP**
-   - Resources: default is fine
-5. Start the container
-
 ## vpse CLI
 
-Create containers and manage ports from the command line:
+Port forwarding management. Works with iptables DNAT — persistent across reboots.
 
 | Command | Description |
 |---|---|
-| `vpse ip 100` | Create container (DHCP → `10.0.3.100`) |
-| `vpse delete 100` | Remove container + all ports |
-| `vpse port 100 80 80` | Forward host:80 → container:80 |
-| `vpse stop 100 80` | Disable port (config saved) |
-| `vpse start 100 80` | Re-enable port |
-| `vpse delport 100 80` | Permanently remove port |
-| `vpse list` | Show all containers + ports |
+| `vpse mk 100 8069 8069` | Create forward (host:8069 → container 100:8069, gets ID) |
+| `vpse list` | Show all active forwards |
+| `vpse stop 1` | Disable forward ID 1 (config kept) |
+| `vpse start 1` | Re-enable forward ID 1 |
+| `vpse delete 1` | Remove forward ID 1 permanently |
+| `vpse rm 100` | Remove all forwards for container 100 |
+
+**VMID** = container number → `mk <vmid>` / `rm <vmid>`
+**ID** = forward number → `stop <ID>` / `start <ID>` / `delete <ID>`
 
 ### Examples
 
 ```bash
-# Create container with fixed IP via DHCP
-vpse ip 100
-
-# Forward ports
-vpse port 100 80 80
-vpse port 100 443 443
-vpse port 100 3000 3000
+# Forward port
+vpse mk 100 8069 8069        # → ID 1 (host:8069 → container 100:8069)
+vpse mk 101 80 8080          # → ID 2 (host:8080 → container 101:80)
 
 # Overview
 vpse list
 
-# Disable a port temporarily
-vpse stop 100 80
+# Disable/enable
+vpse stop 1
+vpse start 1
 
-# Re-enable it
-vpse start 100 80
+# Remove
+vpse delete 2
 
-# Remove container + all ports
-vpse delete 100
+# Remove all forwards for a container
+vpse rm 100
 ```
 
-> Ports are saved in `/etc/vpse/ports.txt` and survive reboots automatically.
-> Container password for `vpse ip` is `vpse4pve`.
+> Ports are saved in `/etc/vpse/ports.txt` and survive reboots.
+> The installer also configures `iptables-persistent` so NAT rules persist.
+
+## Environment variables
+
+| Variable | Default | Description |
+|---|---|---|
+| `PROXMOX_NAME` | Current hostname | Proxmox node name |
+| `PROXMOX_CLUSTER` | `vps-{node}` | Cluster/datacenter name |
+| `PROXMOX_PASSWORD` | `VpsE` | Web UI root password |
+
+### Example with custom names
+
+```bash
+PROXMOX_NAME=webhost PROXMOX_CLUSTER=production \
+  curl -sL https://raw.githubusercontent.com/VpsE-Scripts/Proxmox-Lite/master/install.sh | bash
+```
+
+## What gets installed
+
+- **Proxmox VE** — complete installation (no packages removed)
+- **vmbr0 bridge** — `10.0.3.1/24` for containers
+- **NAT masquerade** — containers reach internet via host IP
+- **dnsmasq** — DHCP server for containers
+- **iptables-persistent** — NAT rules survive reboot
+- **vpse CLI** — port forwarding management
+- **corosync cluster** — single-node, so Web UI shows node online
+
+All Proxmox components are kept: QEMU/KVM, Ceph libraries, ZFS — they consume no resources unless used.
