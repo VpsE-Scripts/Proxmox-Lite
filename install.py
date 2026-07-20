@@ -187,7 +187,7 @@ domain=vpse.local
 dhcp-range=10.0.3.200,10.0.3.250,12h
 dhcp-option=3,10.0.3.1
 dhcp-option=6,10.0.3.1
-port=53
+port=0
 no-resolv
 server=1.1.1.1
 server=8.8.8.8
