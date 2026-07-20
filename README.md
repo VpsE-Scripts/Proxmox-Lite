@@ -6,21 +6,19 @@ Designed for single-IP VPS (OVH, Hetzner, etc.) where you want to run LXC contai
 
 ## Install
 
-Run on a **fresh Debian 12 or 13 VPS** as your user (debian, admin, etc.):
-
-Optionally set a custom node name first:
+Run on a **fresh Debian 12 or 13 VPS**:
 
 ```bash
-hostnamectl set-hostname VpsE   # or any name
-# Or use env vars:
-# PROXMOX_NAME=myhost PROXMOX_CLUSTER=mycluster curl -sL ... | bash
-```
-
-```bash
-curl -sL https://raw.githubusercontent.com/VpsE-Scripts/Proxmox-Lite/master/install.sh | bash
+curl -sL https://raw.githubusercontent.com/VpsE-Scripts/Proxmox-Lite/master/install.sh | PROXMOX_NAME=vpse PROXMOX_CLUSTER=vpse bash
 ```
 
 > ⏱️ **Step 5 (Proxmox VE)** can take 5-15 minutes. The installer continues automatically.
+
+To use custom names:
+
+```bash
+curl -sL https://raw.githubusercontent.com/VpsE-Scripts/Proxmox-Lite/master/install.sh | PROXMOX_NAME=creacher PROXMOX_CLUSTER=flock bash
+```
 
 After completion you'll have:
 
