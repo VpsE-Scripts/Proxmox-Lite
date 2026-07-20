@@ -12,8 +12,9 @@ Run on a **fresh Debian 12 or 13 VPS**:
 curl -sL https://raw.githubusercontent.com/VpsE-Scripts/Proxmox-Lite/master/install.sh | PROXMOX_NAME=vpse PROXMOX_CLUSTER=vpse bash
 ```
 
-> ⏱️ **Step 5 (Proxmox VE)** can take 5-15 minutes. The installer continues automatically.
+Change `PROXMOX_NAME` and `PROXMOX_CLUSTER` to set a custom node and datacenter name.
 
+> ⏱️ **Step 5 (Proxmox VE)** can take 5-15 minutes. The installer continues automatically.
 
 After completion you'll have:
 
