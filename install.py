@@ -128,6 +128,18 @@ class ProxmoxLiteInstaller:
             run(["systemctl", "restart", "corosync", "pve-cluster"], timeout=30)
         run(["systemctl", "restart", "pvestatd"], timeout=30)
 
+    def configure_storage(self):
+        Log.step(7, self.total_steps, "Storage configuration")
+        storage_cfg = Path("/etc/pve/storage.cfg")
+        if not storage_cfg.exists():
+            storage_cfg.write_text("""dir: local
+        path /var/lib/vz
+        content iso,vztmpl,backup,rootdir
+""")
+            Log.ok("storage.cfg created")
+        else:
+            Log.ok("storage.cfg exists")
+
     def setup_network(self):
         Log.step(7, self.total_steps, "Network: bridge + NAT + DHCP")
         run(["sysctl", "-w", "net.ipv4.ip_forward=1"], timeout=10)
@@ -215,7 +227,7 @@ no-dhcp-interface=lo
         print(f"   Node: {self.node_name}, Debian: {self.codename}, IP: {self.ip}")
         steps = [self.check_prerequisites, self.setup_repo, self.configure_hosts,
                  self.set_root_password, self.install_proxmox, self.init_cluster,
-                 self.setup_network, self.install_vpse_cli,
+                 self.setup_network, self.configure_storage, self.install_vpse_cli,
                  self.restart_services, self.verify]
         for step_fn in steps:
             try: step_fn()
