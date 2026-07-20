@@ -9,7 +9,7 @@ Designed for single-IP VPS (OVH, Hetzner, etc.) where you want to run LXC contai
 Run on a **fresh Debian 12 or 13 VPS**:
 
 ```bash
-curl -sL https://raw.githubusercontent.com/VpsE-Scripts/Proxmox-Lite/master/install.sh | PROXMOX_NAME=vpse PROXMOX_CLUSTER=vpse bash
+curl -sL https://raw.githubusercontent.com/VpsE-Scripts/Proxmox-Lite/master/install.sh | PROXMOX_NAME=vpse PROXMOX_CLUSTER=vpse PROXMOX_PASSWORD=VpsE bash
 ```
 
 Change `PROXMOX_NAME` and `PROXMOX_CLUSTER` to set a custom node and datacenter name.
