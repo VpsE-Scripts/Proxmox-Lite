@@ -39,7 +39,7 @@ After completion you'll have:
 
 ## vpse CLI
 
-Port forwarding management. Works with iptables DNAT — persistent across reboots.
+Port forwarding management via the Proxmox host CLI (SSH or console). Run `vpse` commands as root or with `sudo`.
 
 | Command | Description |
 |---|---|
