@@ -138,7 +138,14 @@ class ProxmoxLiteInstaller:
 """)
             Log.ok("storage.cfg created")
         else:
-            Log.ok("storage.cfg exists")
+            # Remove maxfiles (not supported in PVE 9.x)
+            content = storage_cfg.read_text()
+            if "maxfiles" in content:
+                content = re.sub(r'\s*maxfiles\s+\d+\s*\n?', '', content)
+                storage_cfg.write_text(content)
+                Log.ok("maxfiles removed from storage.cfg")
+            else:
+                Log.ok("storage.cfg exists")
 
     def setup_network(self):
         Log.step(7, self.total_steps, "Network: bridge + NAT + DHCP")
