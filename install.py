@@ -25,8 +25,6 @@ PVE_PKGS_TO_PURGE = [
     # Ceph — keep librados2 (runtime dep for perl toolchain)
     "ceph-common", "ceph-fuse", "libcephfs2",
     "librbd1", "librgw2", "python3-cephfs", "python3-ceph-common",
-    # ZFS — only remove zed (keep libs + utils for toolchain)
-    "zfs-zed",
 ]
 
 # Packages that are completely replaced by dummies (no runtime perl modules needed)
