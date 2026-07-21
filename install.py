@@ -116,6 +116,16 @@ class VpseInstaller:
                     with open("/etc/hosts", "a") as f: f.write(f"\n{ip} {name}\n")
         if password:
             run(["chpasswd"], input=f"root:{password}", timeout=10)
+        if name:
+            # Regenerate SSL cert (old one has wrong hostname)
+            ip = public_ip()
+            if ip:
+                run(["openssl", "req", "-x509", "-nodes", "-days", "365",
+                     "-newkey", "rsa:2048",
+                     "-keyout", f"/etc/pve/nodes/{name}/pve-ssl.key",
+                     "-out", f"/etc/pve/nodes/{name}/pve-ssl.pem",
+                     "-subj", f"/CN={name}",
+                     "-addext", f"subjectAltName=IP:{ip},DNS:{name}"], timeout=30)
         if cluster and not Path("/etc/pve/corosync.conf").exists():
             run(["pvecm", "create", cluster], timeout=30)
         if name or cluster or password:
