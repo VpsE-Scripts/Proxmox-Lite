@@ -124,6 +124,10 @@ class VpseInstaller:
                     with open("/etc/hosts", "a") as f: f.write(f"\n{ip} {name}\n")
         if password:
             run(["chpasswd"], input=f"root:{password}", timeout=10)
+        # Disable pve-firewall (blocks custom ports)
+        if Path("/etc/systemd/system/multi-user.target.wants/pve-firewall.service").exists():
+            run(["systemctl", "stop", "pve-firewall"], timeout=30)
+            run(["systemctl", "disable", "pve-firewall"], timeout=30)
         if name:
             # Regenerate SSL cert (old one has wrong hostname)
             ip = public_ip()
