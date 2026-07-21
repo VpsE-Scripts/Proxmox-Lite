@@ -103,6 +103,9 @@ class VpseInstaller:
 
     def init_cluster(self):
         Log.step(4, self.total_steps, "Configuration")
+        # Ensure pmxcfs is running before writing to /etc/pve/
+        run(["systemctl", "start", "pve-cluster"], timeout=30)
+        run(["systemctl", "start", "corosync"], timeout=30)
         # Storage config
         storage_cfg = Path("/etc/pve/storage.cfg")
         if not storage_cfg.exists():
