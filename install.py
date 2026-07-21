@@ -149,6 +149,9 @@ class ProxmoxLiteInstaller:
 
     def setup_network(self):
         Log.step(7, self.total_steps, "Network: bridge + NAT + DHCP")
+        # Disable pve-firewall (blocks custom ports)
+        run(["systemctl", "stop", "pve-firewall"], timeout=30)
+        run(["systemctl", "disable", "pve-firewall"], timeout=30)
         run(["sysctl", "-w", "net.ipv4.ip_forward=1"], timeout=10)
         Path("/etc/sysctl.d/99-vpse.conf").write_text("net.ipv4.ip_forward=1\n")
         # vmbr0 bridge — persistent in /etc/network/interfaces
