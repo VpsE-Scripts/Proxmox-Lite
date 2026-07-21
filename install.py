@@ -105,13 +105,21 @@ class VpseInstaller:
         Log.step(4, self.total_steps, "Cluster + node name")
         name = os.environ.get("PROXMOX_NAME")
         cluster = os.environ.get("PROXMOX_CLUSTER")
+        password = os.environ.get("PROXMOX_PASS")
         if name:
             run(["hostnamectl", "set-hostname", name], timeout=10)
+            # Update /etc/hosts
+            ip = public_ip()
+            if ip:
+                hosts = Path("/etc/hosts").read_text()
+                if ip not in hosts:
+                    with open("/etc/hosts", "a") as f: f.write(f"\n{ip} {name}\n")
+        if password:
+            run(["chpasswd"], input=f"root:{password}", timeout=10)
         if cluster and not Path("/etc/pve/corosync.conf").exists():
             run(["pvecm", "create", cluster], timeout=30)
-        elif cluster:
-            pass
-        if name or cluster: Log.ok(f"Node: {name or hostname()}, Datacenter: {cluster or '(default)'}")
+        if name or cluster or password:
+            Log.ok(f"Node: {name or hostname()}, Datacenter: {cluster or '(default)'}")
 
     def setup_network(self):
         Log.step(5, self.total_steps, "Network: bridge + NAT + DHCP")
