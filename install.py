@@ -60,7 +60,7 @@ class VpseInstaller:
         self.codename = ""
         self.ip = ""
         self.node_name = hostname() or "pve"
-        self.total_steps = 6
+        self.total_steps = 7
 
     def check_prerequisites(self):
         Log.step(1, self.total_steps, "Prerequisites")
@@ -101,8 +101,20 @@ class VpseInstaller:
         ver = run(["pveversion"], timeout=5).stdout.strip()
         Log.ok(ver or "Proxmox VE installed")
 
+    def init_cluster(self):
+        Log.step(4, self.total_steps, "Cluster + node name")
+        name = os.environ.get("PROXMOX_NAME")
+        cluster = os.environ.get("PROXMOX_CLUSTER")
+        if name:
+            run(["hostnamectl", "set-hostname", name], timeout=10)
+        if cluster and not Path("/etc/pve/corosync.conf").exists():
+            run(["pvecm", "create", cluster], timeout=30)
+        elif cluster:
+            pass
+        if name or cluster: Log.ok(f"Node: {name or hostname()}, Datacenter: {cluster or '(default)'}")
+
     def setup_network(self):
-        Log.step(4, self.total_steps, "Network: bridge + NAT + DHCP")
+        Log.step(5, self.total_steps, "Network: bridge + NAT + DHCP")
         run(["sysctl", "-w", "net.ipv4.ip_forward=1"], timeout=10)
         Path("/etc/sysctl.d/99-vpse.conf").write_text("net.ipv4.ip_forward=1\n")
         # vmbr0 bridge in /etc/network/interfaces
@@ -168,7 +180,7 @@ port=0
         Log.ok("NAT + DHCP active (10.0.3.0/24)")
 
     def install_vpse_cli(self):
-        Log.step(5, self.total_steps, "Install vpse CLI")
+        Log.step(6, self.total_steps, "Install vpse CLI")
         vpse_path = Path("/usr/local/bin/vpse")
         vpse_path.write_text(r"""#!/bin/bash
 set -uo pipefail
@@ -196,13 +208,13 @@ case "${1:-help}" in mk) cmd_mk "$2" "$3" "$4" ;; list) cmd_list ;; stop) cmd_st
         Log.ok("vpse CLI installed")
 
     def restart_services(self):
-        Log.step(6, self.total_steps, "Restart services")
+        Log.step(7, self.total_steps, "Restart services")
         for svc in ["pve-cluster", "pveproxy", "pvedaemon", "pvestatd"]:
             run(["systemctl", "restart", svc], timeout=30)
         Log.ok("Services restarted")
 
     def verify(self):
-        Log.step(6, self.total_steps, "Verification")
+        Log.step(7, self.total_steps, "Verification")
         if Path("/usr/share/pve-manager/index.html.tpl").exists():
             Log.ok("pve-manager template found")
         r = run(["systemctl", "is-active", "pveproxy"], timeout=10)
@@ -217,7 +229,7 @@ case "${1:-help}" in mk) cmd_mk "$2" "$3" "$4" ;; list) cmd_list ;; stop) cmd_st
         print("╚══════════════════════════════════╝")
         print(f"   Debian: {self.codename}, IP: {self.ip}, node: {self.node_name}")
         steps = [self.check_prerequisites, self.setup_repo, self.install_proxmox,
-                 self.setup_network, self.install_vpse_cli,
+                 self.init_cluster, self.setup_network, self.install_vpse_cli,
                  self.restart_services, self.verify]
         for step_fn in steps:
             try: step_fn()

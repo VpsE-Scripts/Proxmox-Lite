@@ -9,10 +9,12 @@ Designed for single-IP VPS where you want to run LXC containers behind NAT.
 Run on a **fresh Debian 12 or 13 VPS**:
 
 ```bash
-curl -sL https://raw.githubusercontent.com/VpsE-Scripts/Proxmox-Lite/master/install.sh | bash
+curl -sL https://raw.githubusercontent.com/VpsE-Scripts/Proxmox-Lite/master/install.sh | PROXMOX_NAME=myhost PROXMOX_CLUSTER=mycluster bash
 ```
 
-> ⏱️ **Step 3 (Proxmox VE)** can take 5-15 minutes. The installer continues automatically.
+Set `PROXMOX_NAME` for node name and `PROXMOX_CLUSTER` for datacenter name.
+
+> ⏱️ **Step 3 (Proxmox VE)** can take 5-15 minutes.
 
 After completion you'll have:
 - Proxmox Web UI at `https://<your-vps-ip>:8006`
