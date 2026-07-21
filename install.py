@@ -102,7 +102,15 @@ class VpseInstaller:
         Log.ok(ver or "Proxmox VE installed")
 
     def init_cluster(self):
-        Log.step(4, self.total_steps, "Cluster + node name")
+        Log.step(4, self.total_steps, "Configuration")
+        # Storage config
+        storage_cfg = Path("/etc/pve/storage.cfg")
+        if not storage_cfg.exists():
+            storage_cfg.write_text("""dir: local
+        path /var/lib/vz
+        content iso,vztmpl,backup,rootdir
+""")
+            Log.ok("storage.cfg created")
         name = os.environ.get("PROXMOX_NAME")
         cluster = os.environ.get("PROXMOX_CLUSTER")
         password = os.environ.get("PROXMOX_PASS")
