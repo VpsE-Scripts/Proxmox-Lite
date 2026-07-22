@@ -273,8 +273,6 @@ case "${1:-help}" in mk) cmd_mk "$2" "$3" "$4" ;; list) cmd_list ;; stop) cmd_st
         print("║   VpsE Proxmox — Done! 🎉      ║")
         print("╚══════════════════════════════════╝")
         print(f"\n  Web UI:  https://{self.ip}:8006")
-        print("\n  vpse mk 100 8069 8069    → Port forward")
-        print("  vpse list                → Overview")
         print()
 
 if __name__ == "__main__":
