@@ -69,7 +69,8 @@ cmd_mk() {
   [ -n "$ex" ] && [ "$ex" != "$I" ] && fail "Port $x already in use"
   fw_add "$I" "$x" "$i"
   local id; id=$(ports_add "$v" "$i" "$x")
-  ok "ID $id — host:$x -> ${I}:$i"
+  local pub; pub=$(curl -s --connect-timeout 3 https://ifconfig.me 2>/dev/null || echo "141.95.112.122")
+  ok "ID $id — ${I}:$i -> http://${pub}:$x"
 }
 
 cmd_stop() {

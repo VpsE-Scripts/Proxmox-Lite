@@ -11,6 +11,7 @@ from typing import List
 
 PROXMOX_REPO = "http://download.proxmox.com/debian/pve"
 GPG_URL = "https://download.proxmox.com/debian/proxmox-release-{codename}.gpg"
+GPG_FALLBACK = "https://download.proxmox.com/debian/proxmox-release-bookworm.gpg"
 
 class Log:
     @staticmethod
@@ -60,7 +61,7 @@ class VpseInstaller:
         self.codename = ""
         self.ip = ""
         self.node_name = hostname() or "pve"
-        self.total_steps = 7
+        self.total_steps = 8
 
     def check_prerequisites(self):
         Log.step(1, self.total_steps, "Prerequisites")
@@ -86,7 +87,13 @@ class VpseInstaller:
             if p.exists(): p.rename(p.with_suffix(p.suffix + ".disabled"))
         gpg_path = "/etc/apt/trusted.gpg.d/proxmox.gpg"
         if not Path(gpg_path).exists():
-            run(["curl", "-fsSL", "--insecure", GPG_URL.format(codename=self.codename), "-o", gpg_path], timeout=30)
+            urls = [GPG_URL.format(codename=self.codename), GPG_FALLBACK]
+            for url in urls:
+                r = run(["curl", "-fsSL", "--insecure", url, "-o", gpg_path], timeout=30)
+                if r.returncode == 0:
+                    break
+            if not Path(gpg_path).exists() or Path(gpg_path).stat().st_size == 0:
+                Log.warn(f"GPG key download failed — trying without key verification")
         run(["apt-get", "update"], timeout=120)
         Log.ok("Repository configured")
 
@@ -105,7 +112,14 @@ class VpseInstaller:
         Log.step(4, self.total_steps, "Configuration")
         # Ensure pmxcfs is running before writing to /etc/pve/
         run(["systemctl", "start", "pve-cluster"], timeout=30)
-        run(["systemctl", "start", "corosync"], timeout=30)
+        # Verify /etc/pve/ is mounted (FUSE)
+        import time
+        for _ in range(10):
+            if Path("/etc/pve/storage.cfg").exists() or Path("/etc/pve/.version.json").exists():
+                break
+            time.sleep(1)
+        else:
+            Log.warn("/etc/pve/ FUSE mount not confirmed — continuing anyway")
         # Storage config
         storage_cfg = Path("/etc/pve/storage.cfg")
         if not storage_cfg.exists():
@@ -119,6 +133,7 @@ class VpseInstaller:
         password = os.environ.get("PROXMOX_PASS")
         if name:
             run(["hostnamectl", "set-hostname", name], timeout=10)
+            self.node_name = name  # <<< FIX: refresh after hostname change
             # Update /etc/hosts
             ip = public_ip()
             if ip:
@@ -230,7 +245,7 @@ ports_del_id() { local id="$1"; [ -f "$PORTS_DB" ] && sed -i "/^$id:/d" "$PORTS_
 fw_add() { local I="$1" X="$2" i="$3"; iptables -t nat -C PREROUTING -p tcp --dport "$X" -j DNAT --to-destination "$I:$i" 2>/dev/null && return 0; iptables -t nat -A PREROUTING -p tcp --dport "$X" -j DNAT --to-destination "$I:$i"; iptables -C FORWARD -p tcp -d "$I" --dport "$i" -j ACCEPT 2>/dev/null || iptables -A FORWARD -p tcp -d "$I" --dport "$i" -j ACCEPT; sv_ipt; }
 fw_rm() { local I="$1" X="$2" i="$3"; iptables -t nat -D PREROUTING -p tcp --dport "$X" -j DNAT --to-destination "$I:$i" 2>/dev/null || true; iptables -D FORWARD -p tcp -d "$I" --dport "$i" -j ACCEPT 2>/dev/null || true; sv_ipt; }
 fw_rmall() { local I="$1"; iptables-save | grep -v "to:$I" | iptables-restore 2>/dev/null || true; sv_ipt; }
-cmd_mk() { local v="$1" i="$2" x="$3"; valid_vmid "$v" || fail "VMID 100-999"; pct config "$v" &>/dev/null || fail "Container $v not found"; valid_port "$i" || fail "Bad internal port"; [ -z "$x" ] && x="$i"; valid_port "$x" || fail "Bad external port"; local I=$(get_ip "$v"); [ -z "$I" ] && fail "No IP for container $v"; local ex=$(iptables -t nat -L PREROUTING -n 2>/dev/null | grep "dpt:$x " | grep -oP 'to:\\K[0-9.]+' | head -1); [ -n "$ex" ] && [ "$ex" != "$I" ] && fail "Port $x already in use"; fw_add "$I" "$x" "$i"; local id=$(ports_add "$v" "$i" "$x"); local pub=$(curl -s --connect-timeout 3 https://ifconfig.me 2>/dev/null || echo "141.95.112.122"); ok "ID $id - http://${pub}:${x} -> ${I}:${i}"; }
+cmd_mk() { local v="$1" i="$2" x="$3"; valid_vmid "$v" || fail "VMID 100-999"; pct config "$v" &>/dev/null || fail "Container $v not found"; valid_port "$i" || fail "Bad internal port"; [ -z "$x" ] && x="$i"; valid_port "$x" || fail "Bad external port"; local I=$(get_ip "$v"); [ -z "$I" ] && fail "No IP for container $v"; local ex=$(iptables -t nat -L PREROUTING -n 2>/dev/null | grep "dpt:$x " | grep -oP 'to:\\K[0-9.]+' | head -1); [ -n "$ex" ] && [ "$ex" != "$I" ] && fail "Port $x already in use"; fw_add "$I" "$x" "$i"; local id=$(ports_add "$v" "$i" "$x"); local pub=$(curl -s --connect-timeout 3 https://ifconfig.me 2>/dev/null || echo "141.95.112.122"); ok "ID $id - ${I}:${i} -> http://${pub}:${x}"; }
 cmd_stop() { local id="$1"; local line=$(grep "^$id:" "$PORTS_DB" 2>/dev/null) || fail "ID $id not found"; local v i x s; IFS=: read -r id v i x s <<< "$line"; local I=$(get_ip "$v"); fw_rm "$I" "$x" "$i"; ports_set_status "$id" "stopped"; warn "ID $id ($x) stopped"; }
 cmd_start() { local id="$1"; local line=$(grep "^$id:" "$PORTS_DB" 2>/dev/null) || fail "ID $id not found"; local v i x s; IFS=: read -r id v i x s <<< "$line"; [ "$s" != "stopped" ] && fail "ID $id already active"; local I=$(get_ip "$v"); fw_add "$I" "$x" "$i"; ports_set_status "$id" "active"; ok "ID $id ($x) enabled"; }
 cmd_delete() { local id="$1"; local line=$(grep "^$id:" "$PORTS_DB" 2>/dev/null) || fail "ID $id not found"; local v i x s; IFS=: read -r id v i x s <<< "$line"; local I=$(get_ip "$v"); [ -n "$I" ] && fw_rm "$I" "$x" "$i"; ports_del_id "$id"; ok "ID $id removed"; }
@@ -247,7 +262,7 @@ case "${1:-help}" in mk) cmd_mk "$2" "$3" "$4" ;; list) cmd_list ;; stop) cmd_st
         Log.ok("Services restarted")
 
     def verify(self):
-        Log.step(7, self.total_steps, "Verification")
+        Log.step(8, self.total_steps, "Verification")
         if Path("/usr/share/pve-manager/index.html.tpl").exists():
             Log.ok("pve-manager template found")
         r = run(["systemctl", "is-active", "pveproxy"], timeout=10)
