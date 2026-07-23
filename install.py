@@ -12,6 +12,8 @@ from typing import List
 PROXMOX_REPO = "http://download.proxmox.com/debian/pve"
 GPG_URL = "https://download.proxmox.com/debian/proxmox-release-{codename}.gpg"
 GPG_FALLBACK = "https://download.proxmox.com/debian/proxmox-release-bookworm.gpg"
+# Fallback repo for unsupported codenames (e.g. trixie)
+PROXMOX_REPO_FALLBACK_CODENAME = "bookworm"
 
 class Log:
     @staticmethod
@@ -79,8 +81,11 @@ class VpseInstaller:
 
     def setup_repo(self):
         Log.step(2, self.total_steps, "Proxmox repository")
+        # Use bookworm repo as fallback for unsupported codenames (e.g. trixie)
+        repo_codename = self.codename
+        test_url = f"{PROXMOX_REPO} {repo_codename} pve-no-subscription"
         Path("/etc/apt/sources.list.d/pve.list").write_text(
-            f"deb {PROXMOX_REPO} {self.codename} pve-no-subscription\n")
+            f"deb {PROXMOX_REPO} {repo_codename} pve-no-subscription\n")
         for f in ["/etc/apt/sources.list.d/pve-enterprise.list",
                    "/etc/apt/sources.list.d/pve-enterprise.sources"]:
             p = Path(f)
@@ -94,7 +99,7 @@ class VpseInstaller:
                     break
             if not Path(gpg_path).exists() or Path(gpg_path).stat().st_size == 0:
                 Log.warn(f"GPG key download failed — trying without key verification")
-        run(["apt-get", "update"], timeout=120)
+        run(["apt-get", "update"], timeout=180)
         Log.ok("Repository configured")
 
     def install_proxmox(self):
@@ -104,7 +109,10 @@ class VpseInstaller:
             Log.ok("Already installed"); return
         debconf_set("grub-pc grub-pc/install_devices multiselect /dev/sda\n")
         debconf_set("postfix postfix/main_mailer_type select No configuration\n")
-        apt_install("proxmox-ve")
+        env = os.environ.copy(); env["DEBIAN_FRONTEND"] = "noninteractive"
+        r = run(["apt-get", "install", "-y", "proxmox-ve"], timeout=600, env=env)
+        if r.returncode != 0:
+            Log.fail(f"Proxmox VE install failed (exit {r.returncode}):\n{r.stderr[-500:]}")
         ver = run(["pveversion"], timeout=5).stdout.strip()
         Log.ok(ver or "Proxmox VE installed")
 
@@ -146,18 +154,22 @@ class VpseInstaller:
         if Path("/etc/systemd/system/multi-user.target.wants/pve-firewall.service").exists():
             run(["systemctl", "stop", "pve-firewall"], timeout=30)
             run(["systemctl", "disable", "pve-firewall"], timeout=30)
-        if name:
-            # Regenerate SSL cert (old one has wrong hostname)
-            ip = public_ip()
-            if ip:
-                run(["openssl", "req", "-x509", "-nodes", "-days", "365",
-                     "-newkey", "rsa:2048",
-                     "-keyout", f"/etc/pve/nodes/{name}/pve-ssl.key",
-                     "-out", f"/etc/pve/nodes/{name}/pve-ssl.pem",
-                     "-subj", f"/CN={name}",
-                     "-addext", f"subjectAltName=IP:{ip},DNS:{name}"], timeout=30)
+        # Create cluster FIRST — registers node in pmxcfs
         if cluster and not Path("/etc/pve/corosync.conf").exists():
             run(["pvecm", "create", cluster], timeout=30)
+        # THEN regenerate SSL cert — node directory now exists in FUSE
+        if name:
+            ip = public_ip()
+            if ip:
+                # Ensure node directory exists
+                node_dir = Path(f"/etc/pve/nodes/{name}")
+                node_dir.mkdir(parents=True, exist_ok=True)
+                run(["openssl", "req", "-x509", "-nodes", "-days", "365",
+                     "-newkey", "rsa:2048",
+                     "-keyout", str(node_dir / "pve-ssl.key"),
+                     "-out", str(node_dir / "pve-ssl.pem"),
+                     "-subj", f"/CN={name}",
+                     "-addext", f"subjectAltName=IP:{ip},DNS:{name}"], timeout=30)
         if name or cluster or password:
             Log.ok(f"Node: {name or hostname()}, Datacenter: {cluster or '(default)'}")
 
